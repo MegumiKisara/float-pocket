@@ -3,8 +3,7 @@ import os
 import traceback
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QByteArray, QBuffer, QIODevice
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -35,7 +34,7 @@ class OcrTranslateModule(QWidget):
         self._image_b64: str | None = None
 
         self.setWindowTitle("OCR / 翻译")
-        self.setMinimumSize(600, 600)
+        self.setMinimumSize(560, 520)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -43,34 +42,19 @@ class OcrTranslateModule(QWidget):
         layout.setSpacing(6)
 
         # ── Input area ────────────────────────────────────────
-        layout.addWidget(QLabel("输入内容："))
+        layout.addWidget(QLabel("输入内容（可粘贴图片或文字）："))
         self._input_edit = QTextEdit()
-        self._input_edit.setPlaceholderText("在此输入或粘贴文字…")
-        self._input_edit.setMinimumHeight(120)
+        self._input_edit.setPlaceholderText("在此输入文字，或 Ctrl+V 粘贴文字…")
+        self._input_edit.setMinimumHeight(140)
+        self._input_edit.textChanged.connect(self._on_input_changed)
         layout.addWidget(self._input_edit)
-
-        # ── Image preview ─────────────────────────────────────
-        self._preview_label = QLabel()
-        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setMinimumHeight(120)
-        self._preview_label.setMaximumHeight(200)
-        self._preview_label.setStyleSheet(
-            "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;"
-        )
-        self._preview_label.setVisible(False)
-        layout.addWidget(self._preview_label)
 
         # ── Buttons ───────────────────────────────────────────
         btn_row = QHBoxLayout()
 
-        self._paste_img_btn = QPushButton("粘贴图片")
+        self._paste_img_btn = QPushButton("📷 粘贴图片")
         self._paste_img_btn.clicked.connect(self._paste_image)
         btn_row.addWidget(self._paste_img_btn)
-
-        self._clear_img_btn = QPushButton("清除图片")
-        self._clear_img_btn.clicked.connect(self._clear_image)
-        self._clear_img_btn.setVisible(False)
-        btn_row.addWidget(self._clear_img_btn)
 
         btn_row.addStretch()
 
@@ -88,6 +72,11 @@ class OcrTranslateModule(QWidget):
 
         layout.addLayout(btn_row)
 
+        # ── Status hint ───────────────────────────────────────
+        self._status_label = QLabel("")
+        self._status_label.setStyleSheet("color: #999; font-size: 12px;")
+        layout.addWidget(self._status_label)
+
         # ── Output area ───────────────────────────────────────
         layout.addWidget(QLabel("结果："))
         self._output_edit = QTextEdit()
@@ -101,6 +90,14 @@ class OcrTranslateModule(QWidget):
         self.show()
         self.raise_()
         self.activateWindow()
+
+    # ── input changed → clear stale output ────────────────────
+
+    def _on_input_changed(self):
+        # Clear output when user types after OCR
+        if self._output_edit.toPlaintext().strip():
+            self._output_edit.clear()
+            self._status_label.setText("")
 
     # ── image paste ───────────────────────────────────────────
 
@@ -117,32 +114,24 @@ class OcrTranslateModule(QWidget):
             QMessageBox.warning(self, "提示", "剪贴板图片无效")
             return
 
-        # Show preview
-        pixmap = QPixmap.fromImage(qimage)
-        scaled = pixmap.scaled(
-            560, 180,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self._preview_label.setPixmap(scaled)
-        self._preview_label.setVisible(True)
-        self._clear_img_btn.setVisible(True)
-
-        # Convert to base64
+        # Insert image into input QTextEdit as embedded HTML
         ba = QByteArray()
         buf = QBuffer(ba)
         buf.open(QIODevice.OpenModeFlag.WriteOnly)
         qimage.save(buf, "PNG")
         buf.close()
-        self._image_b64 = base64.b64encode(bytes(ba)).decode()
+        b64 = base64.b64encode(bytes(ba)).decode()
+        self._image_b64 = b64
 
-        self._output_edit.setText("")
+        html = (
+            '<p><img src="data:image/png;base64,{}" '
+            'width="520" style="max-width:100%" /></p>'.format(b64)
+        )
+        self._input_edit.setHtml(html)
 
-    def _clear_image(self):
-        self._image_b64 = None
-        self._preview_label.setPixmap(QPixmap())
-        self._preview_label.setVisible(False)
-        self._clear_img_btn.setVisible(False)
+        self._output_edit.clear()
+        self._status_label.setText("图片已粘贴，可点击「OCR 识别」提取文字")
+        _log(f"Image pasted, base64 length={len(b64)}")
 
     # ── OCR ───────────────────────────────────────────────────
 
@@ -154,6 +143,7 @@ class OcrTranslateModule(QWidget):
         text = self._input_edit.toPlaintext().strip()
         if text:
             self._output_edit.setText(text)
+            self._status_label.setText("")
         else:
             QMessageBox.warning(self, "提示", "请先输入文字或粘贴图片")
 
@@ -165,6 +155,7 @@ class OcrTranslateModule(QWidget):
         self._set_buttons_enabled(False)
         self._ocr_btn.setText("识别中...")
         self._output_edit.setText("正在识别...")
+        self._status_label.setText("")
         QApplication.processEvents()
 
         try:
@@ -172,7 +163,8 @@ class OcrTranslateModule(QWidget):
             result = agent.extract_text(self._image_b64)
             _log(f"OCR result length={len(result)}")
             self._output_edit.setText(result)
-            self._clear_image()
+            self._image_b64 = None
+            self._status_label.setText("OCR 完成")
         except Exception as e:
             _log(f"OCR error: {traceback.format_exc()}")
             QMessageBox.critical(self, "OCR 失败", str(e))
@@ -183,11 +175,10 @@ class OcrTranslateModule(QWidget):
     # ── translate ─────────────────────────────────────────────
 
     def _do_translate(self):
-        text = self._output_edit.toPlaintext().strip()
+        # Always translate what's in the input box
+        text = self._input_edit.toPlaintext().strip()
         if not text:
-            text = self._input_edit.toPlaintext().strip()
-        if not text:
-            QMessageBox.warning(self, "提示", "没有可翻译的内容")
+            QMessageBox.warning(self, "提示", "输入框中没有可翻译的内容")
             return
 
         agent = self._get_translate_agent()
@@ -196,6 +187,8 @@ class OcrTranslateModule(QWidget):
 
         self._set_buttons_enabled(False)
         self._translate_btn.setText("翻译中...")
+        self._output_edit.setText("正在翻译...")
+        self._status_label.setText("")
         QApplication.processEvents()
 
         try:
@@ -206,6 +199,7 @@ class OcrTranslateModule(QWidget):
                 f"【原文】\n{text}\n\n"
                 f"【译文】\n{translated}"
             )
+            self._status_label.setText("翻译完成")
         except Exception as e:
             _log(f"Translate error: {traceback.format_exc()}")
             QMessageBox.critical(self, "翻译失败", str(e))
@@ -227,7 +221,6 @@ class OcrTranslateModule(QWidget):
         self._ocr_btn.setEnabled(enabled)
         self._translate_btn.setEnabled(enabled)
         self._paste_img_btn.setEnabled(enabled)
-        self._clear_img_btn.setEnabled(enabled)
 
     def _get_ocr_agent(self):
         key = os.environ.get("QWEN_API_KEY", "")
