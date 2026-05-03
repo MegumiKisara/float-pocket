@@ -47,7 +47,6 @@ class OcrTranslateModule(QWidget):
         self._input_edit.setPlaceholderText("在此输入文字，或 Ctrl+V 粘贴图片/文字…")
         self._input_edit.setMinimumHeight(140)
         self._input_edit.installEventFilter(self)
-        self._input_edit.textChanged.connect(self._on_input_changed)
         layout.addWidget(self._input_edit)
 
         # ── Buttons ───────────────────────────────────────────
@@ -79,13 +78,6 @@ class OcrTranslateModule(QWidget):
         self._output_edit.setReadOnly(True)
         self._output_edit.setPlaceholderText("OCR 或翻译结果将显示在这里…")
         layout.addWidget(self._output_edit)
-
-    # ── input changed → clear stale output ───────────────────
-
-    def _on_input_changed(self):
-        if self._output_edit.toPlaintext():
-            self._output_edit.clear()
-            self._status_label.setText("")
 
     # ── event filter: Ctrl+V → image paste ───────────────────
 
@@ -136,9 +128,7 @@ class OcrTranslateModule(QWidget):
             '<p><img src="data:image/png;base64,{}" '
             'width="520" style="max-width:100%" /></p>'.format(b64)
         )
-        self._input_edit.blockSignals(True)
         self._input_edit.setHtml(html)
-        self._input_edit.blockSignals(False)
 
         self._output_edit.clear()
         self._status_label.setText("图片已粘贴，可点击「OCR 识别」提取文字")
@@ -146,6 +136,10 @@ class OcrTranslateModule(QWidget):
     # ── OCR ───────────────────────────────────────────────────
 
     def _do_ocr(self):
+        # Clear stale output before starting
+        self._output_edit.clear()
+        self._status_label.setText("")
+
         if self._image_b64:
             self._call_ocr_api()
             return
@@ -153,7 +147,6 @@ class OcrTranslateModule(QWidget):
         text = self._input_edit.toPlaintext().strip()
         if text:
             self._output_edit.setText(text)
-            self._status_label.setText("")
         else:
             QMessageBox.warning(self, "提示", "请先输入文字或粘贴图片")
 
@@ -165,7 +158,6 @@ class OcrTranslateModule(QWidget):
         self._set_buttons_enabled(False)
         self._ocr_btn.setText("识别中...")
         self._output_edit.setText("正在识别...")
-        self._status_label.setText("")
         QApplication.processEvents()
 
         try:
@@ -185,6 +177,10 @@ class OcrTranslateModule(QWidget):
     # ── translate ─────────────────────────────────────────────
 
     def _do_translate(self):
+        # Clear stale output before starting
+        self._output_edit.clear()
+        self._status_label.setText("")
+
         text = self._input_edit.toPlaintext().strip()
         if not text:
             QMessageBox.warning(self, "提示", "输入框中没有可翻译的内容")
@@ -197,7 +193,6 @@ class OcrTranslateModule(QWidget):
         self._set_buttons_enabled(False)
         self._translate_btn.setText("翻译中...")
         self._output_edit.setText("正在翻译...")
-        self._status_label.setText("")
         QApplication.processEvents()
 
         try:
@@ -212,6 +207,7 @@ class OcrTranslateModule(QWidget):
             self._status_label.setText("翻译完成")
         except Exception as e:
             _log(f"Translate error: {traceback.format_exc()}")
+            self._output_edit.setText(f"翻译失败：{e}")
             QMessageBox.critical(self, "翻译失败", f"{e}")
         finally:
             self._translate_btn.setText("翻译")
@@ -224,6 +220,7 @@ class OcrTranslateModule(QWidget):
         if not text:
             text = self._input_edit.toPlaintext().strip()
         if not text:
+            QMessageBox.information(self, "提示", "没有可复制的内容")
             return
         QApplication.clipboard().setText(text)
         self._status_label.setText("已复制到剪贴板")
@@ -231,15 +228,11 @@ class OcrTranslateModule(QWidget):
     # ── helpers ───────────────────────────────────────────────
 
     def _clear_input(self):
-        self._input_edit.blockSignals(True)
         self._input_edit.clear()
-        self._input_edit.blockSignals(False)
         self._image_b64 = None
 
     def _clear_all(self):
-        self._input_edit.blockSignals(True)
         self._input_edit.clear()
-        self._input_edit.blockSignals(False)
         self._output_edit.clear()
         self._image_b64 = None
         self._status_label.setText("")
