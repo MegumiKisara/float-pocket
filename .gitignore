@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.claude/
+.idea/
+debug_*.log
+data/config.json
