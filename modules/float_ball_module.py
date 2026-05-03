@@ -8,11 +8,12 @@ import sys
 from modules.settings_module import SettingsDialog
 
 class FloatBallModule(QWidget):
-    def __init__(self, config_module, ocr_module=None, plan_module=None):
+    def __init__(self, config_module, ocr_module=None, plan_module=None, app_launch_module=None):
         super().__init__()
         self._config = config_module
         self._ocr_module = ocr_module
         self._plan_module = plan_module
+        self._app_launch_module = app_launch_module
         self._dragging = False
         self._drag_offset = None
         self._suppress_dock = False
@@ -130,7 +131,9 @@ class FloatBallModule(QWidget):
         plan_action = QAction("计划表", self)
         plan_action.triggered.connect(self._open_plan)
         menu.addAction(plan_action)
-        menu.addAction(QAction("快捷应用", self))
+        app_action = QAction("快捷应用", self)
+        app_action.triggered.connect(self._open_app_launch)
+        menu.addAction(app_action)
         menu.addSeparator()
         settings_action = QAction("设置", self)
         settings_action.triggered.connect(self._open_settings)
@@ -146,7 +149,9 @@ class FloatBallModule(QWidget):
         plan_action = QAction("计划表", self)
         plan_action.triggered.connect(self._open_plan)
         menu.addAction(plan_action)
-        menu.addAction(QAction("快捷应用", self))
+        app_action = QAction("快捷应用", self)
+        app_action.triggered.connect(self._open_app_launch)
+        menu.addAction(app_action)
         menu.addSeparator()
         settings_action = QAction("设置", self)
         settings_action.triggered.connect(self._open_settings)
@@ -160,6 +165,10 @@ class FloatBallModule(QWidget):
     def _open_plan(self):
         if self._plan_module:
             self._plan_module.show_and_capture()
+
+    def _open_app_launch(self):
+        if self._app_launch_module:
+            self._app_launch_module.show_and_capture()
 
     def _on_menu_closed(self):
         if not self._settings_open:

@@ -4,19 +4,23 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSlider,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from modules.app_launch_storage import AppLaunchStorage
 from modules.config_module import CONFIG_FILE, DEFAULT_CONFIG, env_get_api_key, env_set_api_key
 from modules.plan_storage import PlanStorage
 
@@ -60,8 +64,9 @@ class SettingsDialog(QDialog):
     def __init__(self, config_module, parent=None):
         super().__init__(parent)
         self._config = config_module
+        self._app_storage = AppLaunchStorage()
         self.setWindowTitle("通用设置")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(500)
         self._setup_ui()
         self._load_values()
 
@@ -158,6 +163,66 @@ class SettingsDialog(QDialog):
         al.addStretch()
         tabs.addTab(api_tab, "API 配置")
 
+        # ── 快捷应用 tab ───────────────────────────────────────
+        app_tab = QWidget()
+        al2 = QVBoxLayout(app_tab)
+        al2.setContentsMargins(0, 0, 0, 0)
+
+        # --- 分类管理 ---
+        cat_group = QGroupBox("分类管理")
+        cat_layout = QVBoxLayout(cat_group)
+
+        add_cat_row = QHBoxLayout()
+        self._new_cat_input = QLineEdit()
+        self._new_cat_input.setPlaceholderText("新分类名称...")
+        add_cat_row.addWidget(self._new_cat_input, 1)
+        add_cat_btn = QPushButton("新增分类")
+        add_cat_btn.clicked.connect(self._add_category)
+        add_cat_row.addWidget(add_cat_btn)
+        cat_layout.addLayout(add_cat_row)
+
+        cat_manage_row = QHBoxLayout()
+        self._cat_combo = QComboBox()
+        cat_manage_row.addWidget(self._cat_combo, 1)
+        rename_cat_btn = QPushButton("重命名")
+        rename_cat_btn.clicked.connect(self._rename_category)
+        cat_manage_row.addWidget(rename_cat_btn)
+        del_cat_btn = QPushButton("删除分类")
+        del_cat_btn.clicked.connect(self._delete_category)
+        cat_manage_row.addWidget(del_cat_btn)
+        cat_layout.addLayout(cat_manage_row)
+
+        al2.addWidget(cat_group)
+
+        # --- 应用管理 ---
+        app_group = QGroupBox("应用管理")
+        app_layout = QVBoxLayout(app_group)
+
+        add_app_row = QHBoxLayout()
+        add_app_btn = QPushButton("+ 添加应用")
+        add_app_btn.clicked.connect(self._add_app)
+        add_app_row.addWidget(add_app_btn)
+        add_app_hint = QLabel("选择 .exe 可执行文件路径")
+        add_app_hint.setStyleSheet("color: #888; font-size: 11px;")
+        add_app_row.addWidget(add_app_hint)
+        add_app_row.addStretch()
+        app_layout.addLayout(add_app_row)
+
+        # Scrollable app list
+        self._app_scroll = QScrollArea()
+        self._app_scroll.setWidgetResizable(True)
+        self._app_scroll.setStyleSheet("border: none;")
+        self._app_list = QWidget()
+        self._app_list_layout = QVBoxLayout(self._app_list)
+        self._app_list_layout.setSpacing(4)
+        self._app_list_layout.setContentsMargins(0, 0, 0, 0)
+        self._app_list_layout.addStretch()
+        self._app_scroll.setWidget(self._app_list)
+        app_layout.addWidget(self._app_scroll, 1)
+
+        al2.addWidget(app_group, 1)
+        tabs.addTab(app_tab, "快捷应用")
+
         # ── 数据管理 tab ───────────────────────────────────────
         data_tab = QWidget()
         dl = QVBoxLayout(data_tab)
@@ -214,6 +279,7 @@ class SettingsDialog(QDialog):
         self._theme_combo.blockSignals(False)
 
         self._api_key_edit.setText(env_get_api_key())
+        self._refresh_app_tab()
 
     def _toggle_api_key_visible(self):
         if self._api_key_edit.echoMode() == QLineEdit.EchoMode.Password:
@@ -261,16 +327,16 @@ class SettingsDialog(QDialog):
 
     def _clear_all_plans(self):
         reply = QMessageBox.question(
-            None, "确认", "确定要清空所有待办事项吗？此操作不可撤销。",
+            self, "确认", "确定要清空所有待办事项吗？此操作不可撤销。",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             PlanStorage().clear_all()
-            QMessageBox.information(None, "完成", "所有待办已清空")
+            QMessageBox.information(self, "完成", "所有待办已清空")
 
     def _reset_all_config(self):
         reply = QMessageBox.warning(
-            None, "确认重置",
+            self, "确认重置",
             "确定要重置所有配置为默认值吗？\n此操作不可撤销，API Key 等信息将被清除。",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -281,7 +347,135 @@ class SettingsDialog(QDialog):
             self._config.reload()
             self._load_values()
             self._apply_preview()
-            QMessageBox.information(None, "完成", "所有配置已重置为默认值")
+            QMessageBox.information(self, "完成", "所有配置已重置为默认值")
+
+    # ── app management tab ──────────────────────────────────
+
+    def _refresh_app_tab(self):
+        # Refresh category combo
+        self._cat_combo.blockSignals(True)
+        self._cat_combo.clear()
+        for cat in self._app_storage.get_categories():
+            self._cat_combo.addItem(cat["name"], cat["id"])
+
+        # Get index of "默认未分类" and set it
+        default_idx = self._cat_combo.findData("default")
+        if default_idx >= 0:
+            self._cat_combo.setCurrentIndex(default_idx)
+        self._cat_combo.blockSignals(False)
+
+        # Refresh app list
+        while self._app_list_layout.count() > 1:
+            item = self._app_list_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        for app in self._app_storage.get_apps():
+            self._add_app_row(app)
+
+    def _add_app_row(self, app):
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(4, 2, 4, 2)
+        rl.setSpacing(6)
+
+        name_label = QLabel(app["name"])
+        name_label.setMinimumWidth(80)
+        rl.addWidget(name_label)
+
+        path_label = QLabel(app["path"])
+        path_label.setStyleSheet("color: #888; font-size: 11px;")
+        path_label.setWordWrap(True)
+        rl.addWidget(path_label, 1)
+
+        cat_combo = QComboBox()
+        for cat in self._app_storage.get_categories():
+            cat_combo.addItem(cat["name"], cat["id"])
+        cat_combo.setCurrentIndex(cat_combo.findData(app.get("category_id", "default")))
+        cat_combo.currentIndexChanged.connect(
+            lambda idx, aid=app["id"], cb=cat_combo: self._change_app_category(aid, cb.currentData())
+        )
+        rl.addWidget(cat_combo)
+
+        edit_btn = QPushButton("编辑")
+        edit_btn.setFixedWidth(40)
+        edit_btn.clicked.connect(lambda checked, a=app: self._edit_app(a))
+        rl.addWidget(edit_btn)
+
+        del_btn = QPushButton("×")
+        del_btn.setFixedWidth(28)
+        del_btn.clicked.connect(lambda checked, a=app: self._delete_app(a))
+        rl.addWidget(del_btn)
+
+        self._app_list_layout.insertWidget(self._app_list_layout.count() - 1, row)
+
+    def _add_category(self):
+        name = self._new_cat_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "提示", "请输入分类名称")
+            return
+        self._app_storage.add_category(name)
+        self._new_cat_input.clear()
+        self._refresh_app_tab()
+
+    def _rename_category(self):
+        name, ok = QInputDialog.getText(self, "重命名分类", "新名称：")
+        if ok and name.strip():
+            cat_id = self._cat_combo.currentData()
+            if cat_id:
+                self._app_storage.rename_category(cat_id, name.strip())
+                self._refresh_app_tab()
+
+    def _delete_category(self):
+        cat_id = self._cat_combo.currentData()
+        if not cat_id or cat_id == "default":
+            QMessageBox.warning(self, "提示", "默认分类无法删除")
+            return
+        if self._app_storage.has_apps_in_category(cat_id):
+            reply = QMessageBox.question(
+                self, "确认",
+                "该分类下有应用，删除后应用将移至「默认未分类」。继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self._app_storage.delete_category(cat_id)
+        self._refresh_app_tab()
+
+    def _add_app(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择应用程序", "", "程序 (*.exe);;所有文件 (*)"
+        )
+        if not path:
+            return
+        import os
+        default_name = os.path.splitext(os.path.basename(path))[0]
+        name, ok = QInputDialog.getText(self, "应用别名", "显示名称：", text=default_name)
+        if not ok or not name.strip():
+            return
+        self._app_storage.add_app(name.strip(), path)
+        self._refresh_app_tab()
+
+    def _edit_app(self, app):
+        name, ok = QInputDialog.getText(self, "编辑别名", "显示名称：", text=app["name"])
+        if ok and name.strip():
+            path, ok2 = QInputDialog.getText(self, "编辑路径", "路径：", text=app["path"])
+            if ok2 and path.strip():
+                self._app_storage.update_app(app["id"], name=name.strip(), path=path.strip())
+                self._refresh_app_tab()
+
+    def _delete_app(self, app):
+        reply = QMessageBox.question(
+            self, "确认删除", f"删除「{app['name']}」？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._app_storage.delete_app(app["id"])
+            self._refresh_app_tab()
+
+    def _change_app_category(self, app_id, cat_id):
+        self._app_storage.update_app(app_id, category_id=cat_id)
 
     @staticmethod
     def _apply_auto_start(enabled):

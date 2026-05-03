@@ -7,4 +7,5 @@ debug_*.log
 data/instance.lock
 data/config.json
 data/plans.json
+data/apps.json
 data/.env

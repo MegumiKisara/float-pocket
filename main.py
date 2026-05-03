@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from modules.config_module import DATA_DIR, ConfigModule, env_init
 from modules.float_ball_module import FloatBallModule
+from modules.app_launch_module import AppLaunchModule
 from modules.ocr_translate_module import OcrTranslateModule
 from modules.plan_module import PlanModule
 from modules.tray_module import TrayModule
@@ -45,7 +46,8 @@ if __name__ == "__main__":
     config_module = ConfigModule()
     ocr_module = OcrTranslateModule()
     plan_module = PlanModule()
-    float_ball = FloatBallModule(config_module, ocr_module, plan_module)
+    app_launch_module = AppLaunchModule()
+    float_ball = FloatBallModule(config_module, ocr_module, plan_module, app_launch_module)
     tray_module = TrayModule(app, float_ball, config_module)
     tray_module.show()
 
