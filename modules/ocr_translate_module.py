@@ -1,7 +1,7 @@
 import base64
 import os
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt, QEvent
 from PySide6.QtGui import QKeyEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,21 +35,15 @@ class OcrTranslateModule(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
-        # --- Paste hint ---
-        self._hint_label = QLabel("按 Ctrl+V 粘贴图片或文字")
-        self._hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._hint_label.setStyleSheet("color: #999; font-size: 13px; padding: 6px;")
-        layout.addWidget(self._hint_label)
-
-        # --- Image preview ---
-        self._image_label = QLabel()
+        # --- Image preview (always visible, shows hint when empty) ---
+        self._image_label = QLabel("按 Ctrl+V 粘贴图片或文字")
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._image_label.setMinimumHeight(200)
         self._image_label.setMaximumHeight(260)
         self._image_label.setStyleSheet(
             "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;"
+            "color: #999; font-size: 13px;"
         )
-        self._image_label.setVisible(False)
         layout.addWidget(self._image_label)
 
         # --- Buttons row ---
@@ -78,9 +72,20 @@ class OcrTranslateModule(QWidget):
         # --- Result area (editable so user can also type/paste text directly) ---
         self._result_edit = QTextEdit()
         self._result_edit.setPlaceholderText("粘贴图片或文字后的内容将显示在这里…")
+        self._result_edit.installEventFilter(self)
         layout.addWidget(self._result_edit)
 
         self.setFocus()
+
+    # ── event filter ──────────────────────────────────────────
+
+    def eventFilter(self, obj, event):
+        if obj == self._result_edit and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_V and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if QApplication.clipboard().mimeData().hasImage():
+                    self._handle_paste()
+                    return True
+        return super().eventFilter(obj, event)
 
     # ── key event ──────────────────────────────────────────────
 
@@ -127,10 +132,6 @@ class OcrTranslateModule(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
         self._image_label.setPixmap(scaled)
-        self._image_label.setVisible(True)
-
-        self._hint_label.setText("图片已粘贴，可点击 OCR 识别提取文字")
-
         # Clear result
         self._result_edit.clear()
 
@@ -147,8 +148,7 @@ class OcrTranslateModule(QWidget):
         self._has_image = False
         self._current_image_b64 = None
 
-        self._image_label.setVisible(False)
-        self._hint_label.setText("文字已粘贴，可点击 OCR 识别或翻译")
+        self._image_label.setText("按 Ctrl+V 粘贴图片或文字")
         self._result_edit.setText(text)
 
     # ── OCR ────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ class OcrTranslateModule(QWidget):
                 self._result_edit.setText(text)
                 self._has_image = False
                 self._has_text = True
-                self._hint_label.setText("OCR 完成，可继续翻译或编辑文字")
+                self._image_label.setText("按 Ctrl+V 粘贴图片或文字")
             except Exception as e:
                 QMessageBox.critical(self, "OCR 失败", str(e))
             finally:
@@ -222,10 +222,9 @@ class OcrTranslateModule(QWidget):
         self._has_image = False
         self._has_text = False
         self._current_image_b64 = None
+        self._image_label.setText("按 Ctrl+V 粘贴图片或文字")
         self._image_label.setPixmap(QPixmap())
-        self._image_label.setVisible(False)
         self._result_edit.clear()
-        self._hint_label.setText("按 Ctrl+V 粘贴图片或文字")
 
     # ── agent helpers ─────────────────────────────────────────
 
