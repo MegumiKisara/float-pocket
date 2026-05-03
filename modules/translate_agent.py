@@ -19,6 +19,8 @@ class TranslateAgent:
             model=model,
             max_tokens=4096,
             temperature=0.01,
+            timeout=30,
+            max_retries=0,
         )
 
     def translate(self, text: str, target_lang: str = "中文") -> str:

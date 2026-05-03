@@ -19,6 +19,8 @@ class OcrAgent:
             model=model,
             max_tokens=4096,
             temperature=0.01,
+            timeout=30,
+            max_retries=0,
         )
 
     def extract_text(self, image_base64: str) -> str:

@@ -1,6 +1,7 @@
 import base64
 import os
 import traceback
+from datetime import datetime
 
 from PySide6.QtCore import Qt, QByteArray, QBuffer, QIODevice
 from PySide6.QtGui import QPixmap
@@ -17,6 +18,13 @@ from PySide6.QtWidgets import (
 
 from modules.ocr_agent import OcrAgent
 from modules.translate_agent import TranslateAgent
+
+_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), "debug_ocr.log")
+
+
+def _log(msg: str):
+    with open(_LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now():%H:%M:%S}] {msg}\n")
 
 
 class OcrTranslateModule(QWidget):
@@ -160,13 +168,13 @@ class OcrTranslateModule(QWidget):
         QApplication.processEvents()
 
         try:
-            print(f"[OCR] calling API, image_b64 length={len(self._image_b64)}")
+            _log(f"OCR calling API, image_b64 length={len(self._image_b64)}")
             result = agent.extract_text(self._image_b64)
-            print(f"[OCR] result length={len(result)}")
+            _log(f"OCR result length={len(result)}")
             self._output_edit.setText(result)
             self._clear_image()
         except Exception as e:
-            print(f"[OCR] error: {traceback.format_exc()}")
+            _log(f"OCR error: {traceback.format_exc()}")
             QMessageBox.critical(self, "OCR 失败", str(e))
         finally:
             self._ocr_btn.setText("OCR 识别")
@@ -191,15 +199,15 @@ class OcrTranslateModule(QWidget):
         QApplication.processEvents()
 
         try:
-            print(f"[Translate] calling API, text length={len(text)}")
+            _log(f"Translate calling API, text length={len(text)}")
             translated = agent.translate(text)
-            print(f"[Translate] result length={len(translated)}")
+            _log(f"Translate result length={len(translated)}")
             self._output_edit.setText(
                 f"【原文】\n{text}\n\n"
                 f"【译文】\n{translated}"
             )
         except Exception as e:
-            print(f"[Translate] error: {traceback.format_exc()}")
+            _log(f"Translate error: {traceback.format_exc()}")
             QMessageBox.critical(self, "翻译失败", str(e))
         finally:
             self._translate_btn.setText("翻译")
@@ -223,7 +231,7 @@ class OcrTranslateModule(QWidget):
 
     def _get_ocr_agent(self):
         key = os.environ.get("QWEN_API_KEY", "")
-        print(f"[OCR] QWEN_API_KEY={'set' if key else 'NOT SET'}")
+        _log(f"OCR agent: QWEN_API_KEY={'set' if key else 'NOT SET'}")
         if not key:
             QMessageBox.warning(self, "未配置 API Key", "请先在「设置」中配置千问 API Key")
             return None
@@ -233,7 +241,7 @@ class OcrTranslateModule(QWidget):
 
     def _get_translate_agent(self):
         key = os.environ.get("QWEN_API_KEY", "")
-        print(f"[Translate] QWEN_API_KEY={'set' if key else 'NOT SET'}")
+        _log(f"Translate agent: QWEN_API_KEY={'set' if key else 'NOT SET'}")
         if not key:
             QMessageBox.warning(self, "未配置 API Key", "请先在「设置」中配置千问 API Key")
             return None
