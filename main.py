@@ -25,13 +25,13 @@ class SingleInstanceGuard:
 
 
 if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
     guard = SingleInstanceGuard()
     if not guard.ok:
         QMessageBox.warning(None, "FloatPocket", "FloatPocket 已在运行中")
         sys.exit(0)
-
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
 
     # Windows 托盘右键必加！！！
     app.setAttribute(Qt.AA_DontShowIconsInMenus, False)
