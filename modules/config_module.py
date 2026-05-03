@@ -1,9 +1,11 @@
 import json
 import os
 
+from dotenv import load_dotenv, set_key
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+ENV_FILE = os.path.join(DATA_DIR, ".env")
 
 DEFAULT_CONFIG = {
     "auto_start": False,
@@ -16,6 +18,21 @@ DEFAULT_CONFIG = {
     },
     "theme": "light",
 }
+
+
+def env_init():
+    """Load .env file into os.environ at startup."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    load_dotenv(ENV_FILE)
+
+
+def env_get_api_key() -> str:
+    return os.environ.get("QWEN_API_KEY", "")
+
+
+def env_set_api_key(api_key: str):
+    os.environ["QWEN_API_KEY"] = api_key
+    set_key(ENV_FILE, "QWEN_API_KEY", api_key)
 
 
 class ConfigModule:

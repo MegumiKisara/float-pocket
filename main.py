@@ -3,8 +3,9 @@ import sys
 from PySide6.QtCore import Qt, QLockFile
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from modules.config_module import DATA_DIR, ConfigModule
+from modules.config_module import DATA_DIR, ConfigModule, env_init
 from modules.float_ball_module import FloatBallModule
+from modules.ocr_translate_module import OcrTranslateModule
 from modules.tray_module import TrayModule
 
 
@@ -39,8 +40,10 @@ if __name__ == "__main__":
     # ✅ Windows 去掉白边框
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
 
+    env_init()
     config_module = ConfigModule()
-    float_ball = FloatBallModule(config_module)
+    ocr_module = OcrTranslateModule()
+    float_ball = FloatBallModule(config_module, ocr_module)
     tray_module = TrayModule(app, float_ball, config_module)
     tray_module.show()
 

@@ -9,9 +9,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSlider,
     QVBoxLayout,
 )
+
+from modules.config_module import env_get_api_key, env_set_api_key
 
 
 class _HotkeyEdit(QLineEdit):
@@ -114,6 +117,26 @@ class SettingsDialog(QDialog):
         fl4.addRow("主题切换", self._theme_combo)
         layout.addWidget(group4)
 
+        # --- API 配置 ---
+        group5 = QGroupBox("API 配置（千问）")
+        fl5 = QFormLayout(group5)
+
+        self._api_key_edit = QLineEdit()
+        self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_key_edit.setPlaceholderText("输入 DashScope API Key")
+        fl5.addRow("API Key", self._api_key_edit)
+
+        self._toggle_key_btn = QPushButton("显示")
+        self._toggle_key_btn.setFixedWidth(50)
+        self._toggle_key_btn.clicked.connect(self._toggle_api_key_visible)
+        fl5.addRow("", self._toggle_key_btn)
+
+        hint = QLabel("API Key 保存在本地 .env 文件中，不会提交到代码仓库")
+        hint.setStyleSheet("color: #888; font-size: 11px;")
+        fl5.addRow("", hint)
+
+        layout.addWidget(group5)
+
         # --- 按钮 ---
         btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btn_box.accepted.connect(self.accept)
@@ -149,6 +172,16 @@ class SettingsDialog(QDialog):
         self._theme_combo.setCurrentIndex(themes.get(self._config.get("theme", "light"), 0))
         self._theme_combo.blockSignals(False)
 
+        self._api_key_edit.setText(env_get_api_key())
+
+    def _toggle_api_key_visible(self):
+        if self._api_key_edit.echoMode() == QLineEdit.EchoMode.Password:
+            self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._toggle_key_btn.setText("隐藏")
+        else:
+            self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            self._toggle_key_btn.setText("显示")
+
     def _apply_preview(self):
         self._config.set_preview("theme", self._theme_combo.currentData())
         fb = {
@@ -172,6 +205,9 @@ class SettingsDialog(QDialog):
         }
         self._config.set("float_ball", fb)
         self._apply_auto_start(self._auto_start_cb.isChecked())
+        api_key = self._api_key_edit.text().strip()
+        if api_key:
+            env_set_api_key(api_key)
         super().accept()
 
     def reject(self):

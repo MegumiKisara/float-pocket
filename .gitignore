@@ -5,3 +5,4 @@ __pycache__/
 .idea/
 debug_*.log
 data/config.json
+data/.env
