@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QEvent, QPoint, QPropertyAnimation, QRect, QTimer
+from PySide6.QtCore import QSize, Qt, QEvent, QPoint, QPropertyAnimation, QRect, QTimer
 from PySide6.QtGui import QAction, QBitmap, QBrush, QColor, QCursor, QImage, QLinearGradient, QPainter, QPainterPath, QRadialGradient
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
