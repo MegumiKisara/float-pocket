@@ -47,15 +47,11 @@ class OcrTranslateModule(QWidget):
         self._input_edit.setPlaceholderText("在此输入文字，或 Ctrl+V 粘贴图片/文字…")
         self._input_edit.setMinimumHeight(140)
         self._input_edit.installEventFilter(self)
+        self._input_edit.textChanged.connect(self._on_input_changed)
         layout.addWidget(self._input_edit)
 
         # ── Buttons ───────────────────────────────────────────
         btn_row = QHBoxLayout()
-
-        self._paste_img_btn = QPushButton("粘贴图片")
-        self._paste_img_btn.clicked.connect(self._paste_image)
-        btn_row.addWidget(self._paste_img_btn)
-
         btn_row.addStretch()
 
         self._ocr_btn = QPushButton("OCR 识别")
@@ -74,7 +70,7 @@ class OcrTranslateModule(QWidget):
 
         # ── Status hint ───────────────────────────────────────
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #999; font-size: 12px;")
+        self._status_label.setStyleSheet("color: #888; font-size: 12px;")
         layout.addWidget(self._status_label)
 
         # ── Output area ───────────────────────────────────────
@@ -83,6 +79,13 @@ class OcrTranslateModule(QWidget):
         self._output_edit.setReadOnly(True)
         self._output_edit.setPlaceholderText("OCR 或翻译结果将显示在这里…")
         layout.addWidget(self._output_edit)
+
+    # ── input changed → clear stale output ───────────────────
+
+    def _on_input_changed(self):
+        if self._output_edit.toPlaintext():
+            self._output_edit.clear()
+            self._status_label.setText("")
 
     # ── event filter: Ctrl+V → image paste ───────────────────
 
@@ -115,15 +118,12 @@ class OcrTranslateModule(QWidget):
         mime = clipboard.mimeData()
 
         if not mime.hasImage():
-            QMessageBox.warning(None, "提示", "剪贴板中没有图片")
             return
 
         qimage = clipboard.image()
         if qimage.isNull():
-            QMessageBox.warning(None, "提示", "剪贴板图片无效")
             return
 
-        # Insert image into input QTextEdit as embedded HTML
         ba = QByteArray()
         buf = QBuffer(ba)
         buf.open(QIODevice.OpenModeFlag.WriteOnly)
@@ -142,7 +142,6 @@ class OcrTranslateModule(QWidget):
 
         self._output_edit.clear()
         self._status_label.setText("图片已粘贴，可点击「OCR 识别」提取文字")
-        _log(f"Image pasted, base64 length={len(b64)}")
 
     # ── OCR ───────────────────────────────────────────────────
 
@@ -154,9 +153,9 @@ class OcrTranslateModule(QWidget):
         text = self._input_edit.toPlaintext().strip()
         if text:
             self._output_edit.setText(text)
-            self._clear_input()
+            self._status_label.setText("")
         else:
-            QMessageBox.warning(None, "提示", "请先输入文字或粘贴图片")
+            QMessageBox.warning(self, "提示", "请先输入文字或粘贴图片")
 
     def _call_ocr_api(self):
         agent = self._get_ocr_agent()
@@ -178,7 +177,7 @@ class OcrTranslateModule(QWidget):
             self._status_label.setText("OCR 完成")
         except Exception as e:
             _log(f"OCR error: {traceback.format_exc()}")
-            QMessageBox.critical(None, "OCR 失败", str(e))
+            QMessageBox.critical(self, "OCR 失败", f"{e}")
         finally:
             self._ocr_btn.setText("OCR 识别")
             self._set_buttons_enabled(True)
@@ -188,7 +187,7 @@ class OcrTranslateModule(QWidget):
     def _do_translate(self):
         text = self._input_edit.toPlaintext().strip()
         if not text:
-            QMessageBox.warning(None, "提示", "输入框中没有可翻译的内容")
+            QMessageBox.warning(self, "提示", "输入框中没有可翻译的内容")
             return
 
         agent = self._get_translate_agent()
@@ -204,7 +203,7 @@ class OcrTranslateModule(QWidget):
         try:
             _log(f"Translate calling API, text length={len(text)}")
             translated = agent.translate(text)
-            _log(f"Translate result length={len(translated)}")
+            _log(f"Translate result: {translated[:100]}")
             self._output_edit.setText(
                 f"【原文】\n{text}\n\n"
                 f"【译文】\n{translated}"
@@ -213,7 +212,7 @@ class OcrTranslateModule(QWidget):
             self._status_label.setText("翻译完成")
         except Exception as e:
             _log(f"Translate error: {traceback.format_exc()}")
-            QMessageBox.critical(None, "翻译失败", str(e))
+            QMessageBox.critical(self, "翻译失败", f"{e}")
         finally:
             self._translate_btn.setText("翻译")
             self._set_buttons_enabled(True)
@@ -223,8 +222,11 @@ class OcrTranslateModule(QWidget):
     def _copy_result(self):
         text = self._output_edit.toPlaintext().strip()
         if not text:
+            text = self._input_edit.toPlaintext().strip()
+        if not text:
             return
         QApplication.clipboard().setText(text)
+        self._status_label.setText("已复制到剪贴板")
 
     # ── helpers ───────────────────────────────────────────────
 
@@ -245,13 +247,13 @@ class OcrTranslateModule(QWidget):
     def _set_buttons_enabled(self, enabled: bool):
         self._ocr_btn.setEnabled(enabled)
         self._translate_btn.setEnabled(enabled)
-        self._paste_img_btn.setEnabled(enabled)
+        self._copy_btn.setEnabled(enabled)
 
     def _get_ocr_agent(self):
         key = os.environ.get("QWEN_API_KEY", "")
         _log(f"OCR agent: QWEN_API_KEY={'set' if key else 'NOT SET'}")
         if not key:
-            QMessageBox.warning(None, "未配置 API Key", "请先在「设置」中配置千问 API Key")
+            QMessageBox.warning(self, "未配置 API Key", "请先在「设置」中配置千问 API Key")
             return None
         if self._ocr_agent is None:
             self._ocr_agent = OcrAgent(api_key=key)
@@ -261,7 +263,7 @@ class OcrTranslateModule(QWidget):
         key = os.environ.get("QWEN_API_KEY", "")
         _log(f"Translate agent: QWEN_API_KEY={'set' if key else 'NOT SET'}")
         if not key:
-            QMessageBox.warning(None, "未配置 API Key", "请先在「设置」中配置千问 API Key")
+            QMessageBox.warning(self, "未配置 API Key", "请先在「设置」中配置千问 API Key")
             return None
         if self._translate_agent is None:
             self._translate_agent = TranslateAgent(api_key=key)
