@@ -8,10 +8,11 @@ import sys
 from modules.settings_module import SettingsDialog
 
 class FloatBallModule(QWidget):
-    def __init__(self, config_module, ocr_module=None):
+    def __init__(self, config_module, ocr_module=None, plan_module=None):
         super().__init__()
         self._config = config_module
         self._ocr_module = ocr_module
+        self._plan_module = plan_module
         self._dragging = False
         self._drag_offset = None
         self._suppress_dock = False
@@ -126,7 +127,9 @@ class FloatBallModule(QWidget):
         ocr_action = QAction("OCR / 翻译", self)
         ocr_action.triggered.connect(self._open_ocr)
         menu.addAction(ocr_action)
-        menu.addAction(QAction("计划表", self))
+        plan_action = QAction("计划表", self)
+        plan_action.triggered.connect(self._open_plan)
+        menu.addAction(plan_action)
         menu.addAction(QAction("快捷应用", self))
         menu.addSeparator()
         settings_action = QAction("设置", self)
@@ -140,7 +143,9 @@ class FloatBallModule(QWidget):
         ocr_action = QAction("OCR / 翻译", self)
         ocr_action.triggered.connect(self._open_ocr)
         menu.addAction(ocr_action)
-        menu.addAction(QAction("计划表", self))
+        plan_action = QAction("计划表", self)
+        plan_action.triggered.connect(self._open_plan)
+        menu.addAction(plan_action)
         menu.addAction(QAction("快捷应用", self))
         menu.addSeparator()
         settings_action = QAction("设置", self)
@@ -151,6 +156,10 @@ class FloatBallModule(QWidget):
     def _open_ocr(self):
         if self._ocr_module:
             self._ocr_module.show_and_capture()
+
+    def _open_plan(self):
+        if self._plan_module:
+            self._plan_module.show_and_capture()
 
     def _on_menu_closed(self):
         if not self._settings_open:

@@ -6,4 +6,5 @@ __pycache__/
 debug_*.log
 data/instance.lock
 data/config.json
+data/plans.json
 data/.env

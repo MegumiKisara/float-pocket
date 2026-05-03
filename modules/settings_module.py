@@ -9,12 +9,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSlider,
+    QTabWidget,
     QVBoxLayout,
+    QWidget,
 )
 
-from modules.config_module import env_get_api_key, env_set_api_key
+from modules.config_module import CONFIG_FILE, DEFAULT_CONFIG, env_get_api_key, env_set_api_key
+from modules.plan_storage import PlanStorage
 
 
 class _HotkeyEdit(QLineEdit):
@@ -69,19 +73,27 @@ class SettingsDialog(QDialog):
     def _setup_ui(self):
         layout = QVBoxLayout(self)
 
+        tabs = QTabWidget()
+        layout.addWidget(tabs)
+
+        # ── 通用 tab ─────────────────────────────────────────
+        general = QWidget()
+        gl = QVBoxLayout(general)
+        gl.setContentsMargins(0, 0, 0, 0)
+
         # --- 开机自启 ---
         group1 = QGroupBox("开机自启")
         gl1 = QVBoxLayout(group1)
         self._auto_start_cb = QCheckBox("开机后自动运行 FloatPocket")
         gl1.addWidget(self._auto_start_cb)
-        layout.addWidget(group1)
+        gl.addWidget(group1)
 
         # --- 全局快捷键 ---
         group2 = QGroupBox("全局快捷键")
         fl2 = QFormLayout(group2)
         self._hotkey_edit = _HotkeyEdit()
         fl2.addRow("唤起悬浮球", self._hotkey_edit)
-        layout.addWidget(group2)
+        gl.addWidget(group2)
 
         # --- 悬浮球样式 ---
         group3 = QGroupBox("悬浮球样式")
@@ -105,7 +117,7 @@ class SettingsDialog(QDialog):
         self._edge_cb = QCheckBox("靠边时自动吸附")
         fl3.addRow("", self._edge_cb)
 
-        layout.addWidget(group3)
+        gl.addWidget(group3)
 
         # --- 主题 ---
         group4 = QGroupBox("主题")
@@ -115,9 +127,16 @@ class SettingsDialog(QDialog):
         self._theme_combo.addItem("深色", "dark")
         self._theme_combo.currentIndexChanged.connect(self._apply_preview)
         fl4.addRow("主题切换", self._theme_combo)
-        layout.addWidget(group4)
+        gl.addWidget(group4)
 
-        # --- API 配置 ---
+        gl.addStretch()
+        tabs.addTab(general, "通用")
+
+        # ── API 配置 tab ──────────────────────────────────────
+        api_tab = QWidget()
+        al = QVBoxLayout(api_tab)
+        al.setContentsMargins(0, 0, 0, 0)
+
         group5 = QGroupBox("API 配置（千问）")
         fl5 = QFormLayout(group5)
 
@@ -135,7 +154,29 @@ class SettingsDialog(QDialog):
         hint.setStyleSheet("color: #888; font-size: 11px;")
         fl5.addRow("", hint)
 
-        layout.addWidget(group5)
+        al.addWidget(group5)
+        al.addStretch()
+        tabs.addTab(api_tab, "API 配置")
+
+        # ── 数据管理 tab ───────────────────────────────────────
+        data_tab = QWidget()
+        dl = QVBoxLayout(data_tab)
+        dl.setContentsMargins(0, 0, 0, 0)
+
+        group6 = QGroupBox("数据管理")
+        gl6 = QVBoxLayout(group6)
+
+        self._clear_plans_btn = QPushButton("清空所有待办")
+        self._clear_plans_btn.clicked.connect(self._clear_all_plans)
+        gl6.addWidget(self._clear_plans_btn)
+
+        self._reset_config_btn = QPushButton("重置所有配置为默认值")
+        self._reset_config_btn.clicked.connect(self._reset_all_config)
+        gl6.addWidget(self._reset_config_btn)
+
+        dl.addWidget(group6)
+        dl.addStretch()
+        tabs.addTab(data_tab, "数据管理")
 
         # --- 按钮 ---
         btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -215,6 +256,32 @@ class SettingsDialog(QDialog):
         self._load_values()
         self._apply_preview()
         super().reject()
+
+    # ── data management ─────────────────────────────────────
+
+    def _clear_all_plans(self):
+        reply = QMessageBox.question(
+            None, "确认", "确定要清空所有待办事项吗？此操作不可撤销。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            PlanStorage().clear_all()
+            QMessageBox.information(None, "完成", "所有待办已清空")
+
+    def _reset_all_config(self):
+        reply = QMessageBox.warning(
+            None, "确认重置",
+            "确定要重置所有配置为默认值吗？\n此操作不可撤销，API Key 等信息将被清除。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            import os
+            if os.path.exists(CONFIG_FILE):
+                os.remove(CONFIG_FILE)
+            self._config.reload()
+            self._load_values()
+            self._apply_preview()
+            QMessageBox.information(None, "完成", "所有配置已重置为默认值")
 
     @staticmethod
     def _apply_auto_start(enabled):
