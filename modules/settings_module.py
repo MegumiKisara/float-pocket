@@ -124,6 +124,27 @@ class SettingsDialog(QDialog):
 
         gl.addWidget(group3)
 
+        # --- 子球样式 ---
+        group_child = QGroupBox("子球样式")
+        fl_child = QFormLayout(group_child)
+
+        self._child_size_slider = QSlider(Qt.Orientation.Horizontal)
+        self._child_size_slider.setRange(20, 60)
+        self._child_size_slider.valueChanged.connect(self._apply_preview)
+        fl_child.addRow("大小", self._child_size_slider)
+
+        self._child_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._child_opacity_slider.setRange(50, 100)
+        self._child_opacity_slider.valueChanged.connect(self._apply_preview)
+        fl_child.addRow("透明度", self._child_opacity_slider)
+
+        self._child_radius_slider = QSlider(Qt.Orientation.Horizontal)
+        self._child_radius_slider.setRange(0, 30)
+        self._child_radius_slider.valueChanged.connect(self._apply_preview)
+        fl_child.addRow("圆角", self._child_radius_slider)
+
+        gl.addWidget(group_child)
+
         # --- 主题 ---
         group4 = QGroupBox("主题")
         fl4 = QFormLayout(group4)
@@ -400,6 +421,19 @@ class SettingsDialog(QDialog):
         self._radius_slider.setValue(fb.get("corner_radius", 8))
         self._radius_slider.blockSignals(False)
 
+        cb = fb.get("child_ball", {})
+        self._child_size_slider.blockSignals(True)
+        self._child_size_slider.setValue(cb.get("size", 36))
+        self._child_size_slider.blockSignals(False)
+
+        self._child_opacity_slider.blockSignals(True)
+        self._child_opacity_slider.setValue(int(cb.get("opacity", 0.85) * 100))
+        self._child_opacity_slider.blockSignals(False)
+
+        self._child_radius_slider.blockSignals(True)
+        self._child_radius_slider.setValue(cb.get("corner_radius", 18))
+        self._child_radius_slider.blockSignals(False)
+
         self._edge_cb.blockSignals(True)
         self._edge_cb.setChecked(fb.get("edge_adsorption", True))
         self._edge_cb.blockSignals(False)
@@ -433,6 +467,11 @@ class SettingsDialog(QDialog):
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
+            "child_ball": {
+                "size": self._child_size_slider.value(),
+                "opacity": self._child_opacity_slider.value() / 100.0,
+                "corner_radius": self._child_radius_slider.value(),
+            },
         }
         self._config.set_preview("float_ball", fb)
         self.settings_changed.emit()
@@ -446,6 +485,11 @@ class SettingsDialog(QDialog):
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
+            "child_ball": {
+                "size": self._child_size_slider.value(),
+                "opacity": self._child_opacity_slider.value() / 100.0,
+                "corner_radius": self._child_radius_slider.value(),
+            },
         }
         self._config.set("float_ball", fb)
         self._apply_auto_start(self._auto_start_cb.isChecked())

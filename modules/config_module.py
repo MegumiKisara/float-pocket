@@ -10,7 +10,7 @@ ENV_FILE = os.path.join(DATA_DIR, ".env")
 DEFAULT_CONFIG = {
     "auto_start": False,
     "global_hotkey": "ctrl+alt+s",
-    "float_ball": {"size": 60, "opacity": 0.8, "edge_adsorption": True, "corner_radius": 8},
+    "float_ball": {"size": 60, "opacity": 0.8, "edge_adsorption": True, "corner_radius": 8, "child_ball": {"size": 36, "opacity": 0.85, "corner_radius": 18}},
     "api_config": {
         "api_url": "",
         "api_key": "",

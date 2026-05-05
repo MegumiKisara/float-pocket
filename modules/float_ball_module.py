@@ -4,8 +4,20 @@ from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 import ctypes
 import sys
+import time
 
 from modules.settings_module import SettingsDialog
+
+_EXPANDED_SIZE = 150
+_BIG_BALL_RECT = QRect(25, 45, 60, 60)
+
+_BALL_ITEMS = [
+    ("OCR / 翻译", "O",  QRect(44, 10, 36, 36)),
+    ("计划表",     "计", QRect(68, 28, 36, 36)),
+    ("快捷应用",   "快", QRect(76, 66, 36, 36)),
+    ("设置",       "设", QRect(62, 92, 36, 36)),
+]
+
 
 class FloatBallModule(QWidget):
     def __init__(self, config_module, ocr_module=None, plan_module=None, app_launch_module=None):
@@ -17,6 +29,13 @@ class FloatBallModule(QWidget):
         self._dragging = False
         self._drag_offset = None
         self._suppress_dock = False
+        self._was_drag = False
+        self._press_time = 0.0
+        self._expanded_drag = False
+        self._drag_global_offset = QPoint()
+        self._show_balls = False
+        self._orig_pos = QPoint()
+        self._orig_size = QSize(60, 60)
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -50,52 +69,116 @@ class FloatBallModule(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+
+        if not self._show_balls:
+            self._draw_ball(painter, 0, 0, w, h, None)
+        else:
+            # Fill entire area with near-invisible color so Windows doesn't
+            # pass clicks through transparent pixels (WS_EX_LAYERED per-pixel alpha)
+            painter.fillRect(0, 0, w, h, QColor(0, 0, 0, 1))
+
+            self._draw_ball(painter, _BIG_BALL_RECT.x(), _BIG_BALL_RECT.y(),
+                            _BIG_BALL_RECT.width(), _BIG_BALL_RECT.height(), None)
+
+            cb = self._config.get("float_ball", {}).get("child_ball", {})
+            child_size = cb.get("size", 36)
+            child_opacity = cb.get("opacity", 0.85)
+            child_radius = min(cb.get("corner_radius", 18), child_size // 2)
+
+            for _, char, rect in _BALL_ITEMS:
+                self._draw_ball(painter, rect.x(), rect.y(),
+                                child_size, child_size,
+                                (char, child_opacity, child_radius))
+
+    def _draw_ball(self, painter, x, y, w, h, overlay=None):
         fb = self._config.get("float_ball", {})
         opacity = fb.get("opacity", 0.8)
-        r = min(fb.get("corner_radius", 8), self.width() // 2)
-        w, h = self.width(), self.height()
-        rect = self.rect()
+        r = min(fb.get("corner_radius", 8), w // 2)
+        rect = QRect(x, y, w, h)
 
-        # Build clip path for the rounded shape
+        cb = self._config.get("float_ball", {}).get("child_ball", {})
+        child_radius = min(cb.get("corner_radius", 18), w // 2)
+
+        if overlay:
+            opacity = overlay[1]
+            r = overlay[2]
+
+        # Clip path
         clip = QPainterPath()
-        clip.addRoundedRect(0, 0, w, h, r, r)
+        clip.addRoundedRect(x, y, w, h, r, r)
 
-        # 1. Soft shadow / depth offset
+        # 1. Shadow
         painter.save()
         painter.setClipPath(clip)
         painter.translate(2, 4)
         painter.setOpacity(opacity * 0.2)
-        painter.fillRect(rect, QColor(0, 0, 0, 50))
+        painter.fillRect(QRect(x, y, w, h), QColor(0, 0, 0, 50))
         painter.restore()
 
-        # 2. Main vertical gradient fill
+        # 2. Gradient fill
         painter.setClipPath(clip)
         painter.setOpacity(opacity)
-        gradient = QLinearGradient(0, 0, 0, h)
+        gradient = QLinearGradient(x, y, x, y + h)
         gradient.setColorAt(0, QColor("#6CB4EE"))
         gradient.setColorAt(1, QColor("#3A7BD5"))
-        painter.fillRect(rect, QBrush(gradient))
+        painter.fillRect(QRect(x, y, w, h), QBrush(gradient))
 
-        # 3. Glass inner highlight (top radial glow)
-        highlight = QRadialGradient(w // 2, int(h * 0.35), int(w * 0.65))
+        # 3. Highlight
+        highlight = QRadialGradient(x + w // 2, y + int(h * 0.35), int(w * 0.65))
         highlight.setColorAt(0, QColor(255, 255, 255, 130))
         highlight.setColorAt(0.5, QColor(255, 255, 255, 25))
         highlight.setColorAt(1, QColor(255, 255, 255, 0))
-        painter.fillRect(rect, QBrush(highlight))
+        painter.fillRect(QRect(x, y, w, h), QBrush(highlight))
 
-        # 4. "F" text
-        painter.setClipRect(rect)
-        painter.setOpacity(1.0)
-        painter.setPen(QColor("white"))
-        font = painter.font()
-        font.setPixelSize(int(w * 0.4))
-        font.setBold(True)
-        painter.setFont(font)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "F")
+        if overlay:
+            # 4. Character text for child balls
+            char = overlay[0]
+            painter.setClipRect(QRect(x, y, w, h))
+            painter.setOpacity(1.0)
+            painter.setPen(QColor("white"))
+            font = painter.font()
+            font.setPixelSize(int(w * 0.5))
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(QRect(x, y, w, h), Qt.AlignmentFlag.AlignCenter, char)
+        else:
+            # 4. "F" text for main ball
+            painter.setClipRect(QRect(x, y, w, h))
+            painter.setOpacity(1.0)
+            painter.setPen(QColor("white"))
+            font = painter.font()
+            font.setPixelSize(int(w * 0.4))
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(QRect(x, y, w, h), Qt.AlignmentFlag.AlignCenter, "F")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._anim.stop()
+            self._was_drag = False
+            self._press_time = time.monotonic()
+
+            if self._show_balls:
+                # Check if a child ball was clicked
+                cb = self._config.get("float_ball", {}).get("child_ball", {})
+                child_size = cb.get("size", 36)
+                pt = event.position().toPoint()
+                for i, (_, _, rect) in enumerate(_BALL_ITEMS):
+                    ball_rect = QRect(rect.x(), rect.y(), child_size, child_size)
+                    if ball_rect.contains(pt):
+                        self._open_ball_module(i)
+                        self._collapse_balls()
+                        return
+
+                # Click on big ball → collapse
+                if _BIG_BALL_RECT.contains(pt):
+                    self._collapse_balls()
+                    return
+
+                return
+
             self._suppress_dock = self._docked or self._dock_edge is not None
             if self._docked:
                 self._docked = False
@@ -106,6 +189,7 @@ class FloatBallModule(QWidget):
 
     def mouseMoveEvent(self, event):
         if self._dragging:
+            self._was_drag = True
             self._dock_edge = None
             self._suppress_dock = False
             new_pos = self.mapToParent(event.position().toPoint()) - self._drag_offset
@@ -114,14 +198,73 @@ class FloatBallModule(QWidget):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._dragging = False
-            menu_from_dock = self._suppress_dock
+
+            # Dead code path – eventFilter swallows all expanded-state events
+            if self._expanded_drag:
+                self._expanded_drag = False
+                self._dragging = False
+                self._collapse_balls()
+                return
+
+            if self._show_balls:
+                return
+
+            elapsed = time.monotonic() - self._press_time
+
+            # Quick click → expand balls; drag or long hold → move the ball
+            if not self._was_drag and elapsed < 0.3:
+                self._expand_balls()
+                return
+
             self._snap_to_edge()
             if self._docked:
                 self._hover_timer.start()
-            if menu_from_dock:
-                self._show_dock_menu()
-            else:
-                self._show_menu()
+
+    def _get_child_ball_rect(self, index):
+        cb = self._config.get("float_ball", {}).get("child_ball", {})
+        child_size = cb.get("size", 36)
+        _, _, rect = _BALL_ITEMS[index]
+        return QRect(rect.x(), rect.y(), child_size, child_size)
+
+    def _open_ball_module(self, index):
+        if index == 0 and self._ocr_module:
+            self._ocr_module.show_and_capture()
+        elif index == 1 and self._plan_module:
+            self._plan_module.show_and_capture()
+        elif index == 2 and self._app_launch_module:
+            self._app_launch_module.show_and_capture()
+        elif index == 3:
+            self._open_settings()
+
+    def _expand_balls(self):
+        self._orig_pos = self.pos()
+        self._orig_size = QSize(self.width(), self.height())
+        self._show_balls = True
+        self._docked = False
+        self._hover_timer.stop()
+
+        new_x = self._orig_pos.x() - _BIG_BALL_RECT.x()
+        new_y = self._orig_pos.y() - _BIG_BALL_RECT.y()
+        self.setFixedSize(_EXPANDED_SIZE, _EXPANDED_SIZE)
+        self.move(new_x, new_y)
+        self._remove_window_border()
+        self.update()
+
+    def _collapse_balls(self):
+        self._show_balls = False
+        self.setFixedSize(self._orig_size)
+        self.move(self._orig_pos)
+        self._remove_window_border()
+        self.update()
+
+    def _dock_after_collapse(self):
+        self._docked = True
+        self._dock_edge = "right"
+        self._expanded = False
+        self._dock_cooldown = True
+        QTimer.singleShot(500, self._clear_dock_cooldown)
+        self._hover_timer.start()
+        self._animate_to(self._hidden_pos)
 
     def _show_dock_menu(self):
         menu = QMenu(self)
@@ -191,7 +334,8 @@ class FloatBallModule(QWidget):
     def _apply_settings(self):
         fb = self._config.get("float_ball", {})
         size = fb.get("size", 60)
-        self.setFixedSize(size, size)
+        if not self._show_balls:
+            self.setFixedSize(size, size)
         self._remove_window_border()
         self.update()
 
@@ -202,24 +346,20 @@ class FloatBallModule(QWidget):
             hwnd = int(self.winId())
             user32 = ctypes.windll.user32
 
-            # Strip ALL frame/border window styles
             GWL_STYLE = -16
             style = user32.GetWindowLongW(hwnd, GWL_STYLE)
             style &= ~(0x00C00000 | 0x00040000 | 0x00400000 | 0x00800000)
             style |= 0x80000000  # WS_POPUP
             user32.SetWindowLongW(hwnd, GWL_STYLE, style)
 
-            # Extended styles: remove edge, add layered + toolwindow
             GWL_EXSTYLE = -20
             ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
             ex &= ~(0x00000100 | 0x00000200 | 0x00020000)
             ex |= 0x00080000 | 0x00000080  # WS_EX_LAYERED | WS_EX_TOOLWINDOW
             user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
 
-            # Refresh window frame
             user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010)
 
-            # Force layered window with per-pixel alpha via composition attribute
             class ACCENTPOLICY(ctypes.Structure):
                 _fields_ = [
                     ("AccentState", ctypes.c_uint),
@@ -233,11 +373,10 @@ class FloatBallModule(QWidget):
                     ("Data", ctypes.POINTER(ACCENTPOLICY)),
                     ("SizeOfData", ctypes.c_size_t),
                 ]
-            accent = ACCENTPOLICY(4, 0, 0, 0)  # ACCENT_ENABLE_TRANSPARENTGRADIENT
+            accent = ACCENTPOLICY(4, 0, 0, 0)
             data = WINCOMPATTRDATA(19, ctypes.pointer(accent), ctypes.sizeof(ACCENTPOLICY))
             user32.SetWindowCompositionAttribute(hwnd, ctypes.byref(data))
 
-            # DWM: extend frame to hide glass/classic border
             class MARGINS(ctypes.Structure):
                 _fields_ = [("cxLeftWidth", ctypes.c_int), ("cxRightWidth", ctypes.c_int),
                             ("cyTopHeight", ctypes.c_int), ("cyBottomHeight", ctypes.c_int)]
@@ -250,7 +389,8 @@ class FloatBallModule(QWidget):
         if sys.platform == "win32" and eventType == b"windows_generic_MSG":
             try:
                 msg = ctypes.wintypes.MSG.from_address(message)
-                if msg.message == 0x0083:
+                # Only swallow hit-test when NOT expanded (balls need real hit-tests)
+                if msg.message == 0x0083 and not self._show_balls:
                     return True, 0
             except Exception:
                 pass
@@ -263,9 +403,53 @@ class FloatBallModule(QWidget):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
             if self.isVisible() and not self._docked and not self._settings_open and QApplication.activePopupWidget() is None:
-                target = QApplication.widgetAt(event.globalPosition().toPoint())
+                click_global = event.globalPosition().toPoint()
+
+                # When expanded, handle clicks within the window ourselves
+                if self._show_balls:
+                    if QRect(self.pos(), self.size()).contains(click_global):
+                        local_pt = self.mapFromGlobal(click_global)
+                        cb = self._config.get("float_ball", {}).get("child_ball", {})
+                        child_size = cb.get("size", 36)
+                        for i, (_, _, rect) in enumerate(_BALL_ITEMS):
+                            ball_rect = QRect(rect.x(), rect.y(), child_size, child_size)
+                            if ball_rect.contains(local_pt):
+                                self._open_ball_module(i)
+                                self._collapse_balls()
+                                return True
+                        if _BIG_BALL_RECT.contains(local_pt):
+                            self._collapse_balls()
+                            self._was_drag = False
+                            self._expanded_drag = True
+                            self._dragging = True
+                            self._drag_global_offset = click_global - self.pos()
+                            return True
+                        # Empty space → collapse then start drag
+                        self._collapse_balls()
+                        self._was_drag = False
+                        self._expanded_drag = True
+                        self._dragging = True
+                        self._drag_global_offset = click_global - self.pos()
+                        return True
+                    # Click outside expanded window → collapse and hide
+                    self._collapse_balls()
+                    self.hide()
+                    return True
+
+                target = QApplication.widgetAt(click_global)
                 if target != self and not self.isAncestorOf(target):
                     self.hide()
+        elif self._expanded_drag and event.type() == QEvent.MouseMove:
+            self._was_drag = True
+            new_pos = QCursor.pos() - self._drag_global_offset
+            self.move(new_pos)
+            return True
+        elif self._expanded_drag and event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            self._expanded_drag = False
+            self._dragging = False
+            # Click without drag → already collapsed, done.
+            # Drag → stay where dropped (no snap/dock).
+            return True
         return super().eventFilter(obj, event)
 
     def toggle_visibility(self):
@@ -282,6 +466,11 @@ class FloatBallModule(QWidget):
         x = geo.x() + geo.width() - self.width() - 10
         y = geo.y() + (geo.height() - self.height()) // 2
         self.move(int(x), int(y))
+        # Initialize dock positions so _dock_after_collapse() doesn't animate to (0,0)
+        strip = 6
+        screen_right = geo.x() + geo.width()
+        self._visible_pos = QPoint(int(x), int(y))
+        self._hidden_pos = QPoint(screen_right - strip, int(y))
 
     def _snap_to_edge(self):
         if self._suppress_dock:
