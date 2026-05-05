@@ -152,8 +152,21 @@ class PlanModule(QWidget):
         # ── Bottom actions ───────────────────────────────────
         bottom_row = QHBoxLayout()
         bottom_row.addStretch()
+        self._clear_all_btn = QPushButton("清空所有")
+        self._clear_all_btn.setStyleSheet("""
+            QPushButton { background: #F37373; color: #FFFFFF; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; }
+            QPushButton:hover { background: #E06060; }
+            QPushButton:pressed { background: #CC5050; }
+        """)
+        self._clear_all_btn.clicked.connect(self._clear_all)
+        bottom_row.addWidget(self._clear_all_btn)
+
         self._clear_btn = QPushButton("清空已完成")
-        self._clear_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
+        self._clear_btn.setStyleSheet("""
+            QPushButton { background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; }
+            QPushButton:hover { background: #E5E6EB; }
+            QPushButton:pressed { background: #D5D7DD; }
+        """)
         self._clear_btn.clicked.connect(self._clear_completed)
         bottom_row.addWidget(self._clear_btn)
         layout.addLayout(bottom_row)
@@ -236,6 +249,15 @@ class PlanModule(QWidget):
         self._storage.add(title)
         self._add_input.clear()
         self._refresh_list()
+
+    def _clear_all(self):
+        reply = QMessageBox.question(
+            self, "确认", "确定要清空所有待办事项吗？此操作不可撤销。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._storage.clear_all()
+            self._refresh_list()
 
     def _clear_completed(self):
         reply = QMessageBox.question(
