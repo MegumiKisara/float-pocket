@@ -9,13 +9,18 @@ import time
 from modules.settings_module import SettingsDialog
 
 _EXPANDED_SIZE = 150
-_BIG_BALL_RECT = QRect(25, 45, 60, 60)
 
-_BALL_ITEMS = [
-    ("OCR / 翻译", "O",  QRect(44, 10, 36, 36)),
-    ("计划表",     "计", QRect(68, 28, 36, 36)),
-    ("快捷应用",   "快", QRect(76, 66, 36, 36)),
-    ("设置",       "设", QRect(62, 92, 36, 36)),
+# Rightward expansion (float ball on left screen half, big ball on left side)
+_RIGHT_BIG_RECT = QRect(25, 45, 60, 60)
+
+# Leftward expansion (float ball on right screen half, big ball on right side)
+_LEFT_BIG_RECT = QRect(65, 45, 60, 60)
+
+_BALL_LABELS = [
+    ("OCR / 翻译", "O"),
+    ("计划表", "计"),
+    ("快捷应用", "快"),
+    ("设置", "设"),
 ]
 
 
@@ -36,6 +41,9 @@ class FloatBallModule(QWidget):
         self._show_balls = False
         self._orig_pos = QPoint()
         self._orig_size = QSize(60, 60)
+        self._rightward = True
+        self._big_ball_rect = _RIGHT_BIG_RECT
+        self._ball_items = []
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -79,15 +87,15 @@ class FloatBallModule(QWidget):
             # pass clicks through transparent pixels (WS_EX_LAYERED per-pixel alpha)
             painter.fillRect(0, 0, w, h, QColor(0, 0, 0, 1))
 
-            self._draw_ball(painter, _BIG_BALL_RECT.x(), _BIG_BALL_RECT.y(),
-                            _BIG_BALL_RECT.width(), _BIG_BALL_RECT.height(), None)
+            self._draw_ball(painter, self._big_ball_rect.x(), self._big_ball_rect.y(),
+                            self._big_ball_rect.width(), self._big_ball_rect.height(), None)
 
             cb = self._config.get("float_ball", {}).get("child_ball", {})
             child_size = cb.get("size", 36)
             child_opacity = cb.get("opacity", 0.85)
             child_radius = min(cb.get("corner_radius", 18), child_size // 2)
 
-            for _, char, rect in _BALL_ITEMS:
+            for _, char, rect in self._ball_items:
                 self._draw_ball(painter, rect.x(), rect.y(),
                                 child_size, child_size,
                                 (char, child_opacity, child_radius))
@@ -165,7 +173,7 @@ class FloatBallModule(QWidget):
                 cb = self._config.get("float_ball", {}).get("child_ball", {})
                 child_size = cb.get("size", 36)
                 pt = event.position().toPoint()
-                for i, (_, _, rect) in enumerate(_BALL_ITEMS):
+                for i, (_, _, rect) in enumerate(self._ball_items):
                     ball_rect = QRect(rect.x(), rect.y(), child_size, child_size)
                     if ball_rect.contains(pt):
                         self._open_ball_module(i)
@@ -173,7 +181,7 @@ class FloatBallModule(QWidget):
                         return
 
                 # Click on big ball → collapse
-                if _BIG_BALL_RECT.contains(pt):
+                if self._big_ball_rect.contains(pt):
                     self._collapse_balls()
                     return
 
@@ -220,10 +228,38 @@ class FloatBallModule(QWidget):
             if self._docked:
                 self._hover_timer.start()
 
+    def _update_ball_items(self):
+        fb = self._config.get("float_ball", {})
+        positions = fb.get("ball_positions", [
+            {"dx": 19, "dy": -35},
+            {"dx": 43, "dy": -17},
+            {"dx": 51, "dy": 21},
+            {"dx": 37, "dy": 47},
+        ])
+        child_size = fb.get("child_ball", {}).get("size", 36)
+
+        items = []
+        for i, (name, char) in enumerate(_BALL_LABELS):
+            if i < len(positions):
+                dx = positions[i].get("dx", 0)
+                dy = positions[i].get("dy", 0)
+            else:
+                dx, dy = 0, 0
+
+            if self._rightward:
+                x = self._big_ball_rect.x() + dx
+            else:
+                x = self._big_ball_rect.x() + self._big_ball_rect.width() - dx - child_size
+            y = self._big_ball_rect.y() + dy
+
+            items.append((name, char, QRect(x, y, 0, 0)))
+
+        self._ball_items = items
+
     def _get_child_ball_rect(self, index):
         cb = self._config.get("float_ball", {}).get("child_ball", {})
         child_size = cb.get("size", 36)
-        _, _, rect = _BALL_ITEMS[index]
+        _, _, rect = self._ball_items[index]
         return QRect(rect.x(), rect.y(), child_size, child_size)
 
     def _open_ball_module(self, index):
@@ -243,8 +279,19 @@ class FloatBallModule(QWidget):
         self._docked = False
         self._hover_timer.stop()
 
-        new_x = self._orig_pos.x() - _BIG_BALL_RECT.x()
-        new_y = self._orig_pos.y() - _BIG_BALL_RECT.y()
+        # Determine expansion direction based on which screen half the ball is on
+        screen = self.screen() or QApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        center_x = geo.x() + geo.width() // 2
+        self._rightward = (self.pos().x() + 30) < center_x
+        if self._rightward:
+            self._big_ball_rect = _RIGHT_BIG_RECT
+        else:
+            self._big_ball_rect = _LEFT_BIG_RECT
+        self._update_ball_items()
+
+        new_x = self._orig_pos.x() - self._big_ball_rect.x()
+        new_y = self._orig_pos.y() - self._big_ball_rect.y()
         self.setFixedSize(_EXPANDED_SIZE, _EXPANDED_SIZE)
         self.move(new_x, new_y)
         self._remove_window_border()
@@ -336,6 +383,8 @@ class FloatBallModule(QWidget):
         size = fb.get("size", 60)
         if not self._show_balls:
             self.setFixedSize(size, size)
+        else:
+            self._update_ball_items()
         self._remove_window_border()
         self.update()
 
@@ -411,13 +460,13 @@ class FloatBallModule(QWidget):
                         local_pt = self.mapFromGlobal(click_global)
                         cb = self._config.get("float_ball", {}).get("child_ball", {})
                         child_size = cb.get("size", 36)
-                        for i, (_, _, rect) in enumerate(_BALL_ITEMS):
+                        for i, (_, _, rect) in enumerate(self._ball_items):
                             ball_rect = QRect(rect.x(), rect.y(), child_size, child_size)
                             if ball_rect.contains(local_pt):
                                 self._open_ball_module(i)
                                 self._collapse_balls()
                                 return True
-                        if _BIG_BALL_RECT.contains(local_pt):
+                        if self._big_ball_rect.contains(local_pt):
                             self._collapse_balls()
                             self._was_drag = False
                             self._expanded_drag = True

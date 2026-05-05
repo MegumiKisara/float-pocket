@@ -16,6 +16,9 @@ class SingleInstanceGuard:
         path = os.path.join(DATA_DIR, "instance.lock")
         self._lock = QLockFile(path)
         self._locked = self._lock.tryLock(100)
+        if not self._locked:
+            self._lock.removeStaleLockFile()
+            self._locked = self._lock.tryLock(100)
 
     @property
     def ok(self):

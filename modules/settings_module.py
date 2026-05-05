@@ -66,7 +66,7 @@ class SettingsDialog(QDialog):
         self._config = config_module
         self._app_storage = AppLaunchStorage()
         self.setWindowTitle("通用设置")
-        self.setMinimumWidth(500)
+        self.setFixedSize(540, 620)
         self._setup_ui()
         self._load_values()
 
@@ -82,6 +82,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(tabs)
 
         # ── 通用 tab ─────────────────────────────────────────
+        general_scroll = QScrollArea()
+        general_scroll.setWidgetResizable(True)
+        general_scroll.setStyleSheet("QScrollArea { border: none; }")
         general = QWidget()
         gl = QVBoxLayout(general)
         gl.setContentsMargins(0, 0, 0, 0)
@@ -99,6 +102,28 @@ class SettingsDialog(QDialog):
         self._hotkey_edit = _HotkeyEdit()
         fl2.addRow("唤起悬浮球", self._hotkey_edit)
         gl.addWidget(group2)
+
+        # --- 主题 ---
+        group4 = QGroupBox("主题")
+        fl4 = QFormLayout(group4)
+        self._theme_combo = QComboBox()
+        self._theme_combo.addItem("浅色", "light")
+        self._theme_combo.addItem("深色", "dark")
+        self._theme_combo.currentIndexChanged.connect(self._apply_preview)
+        fl4.addRow("主题切换", self._theme_combo)
+        gl.addWidget(group4)
+
+        gl.addStretch()
+        general_scroll.setWidget(general)
+        tabs.addTab(general_scroll, "通用")
+
+        # ── 样式 tab ─────────────────────────────────────────
+        style_scroll = QScrollArea()
+        style_scroll.setWidgetResizable(True)
+        style_scroll.setStyleSheet("QScrollArea { border: none; }")
+        style_tab = QWidget()
+        sl = QVBoxLayout(style_tab)
+        sl.setContentsMargins(0, 0, 0, 0)
 
         # --- 悬浮球样式 ---
         group3 = QGroupBox("悬浮球样式")
@@ -122,7 +147,7 @@ class SettingsDialog(QDialog):
         self._edge_cb = QCheckBox("靠边时自动吸附")
         fl3.addRow("", self._edge_cb)
 
-        gl.addWidget(group3)
+        sl.addWidget(group3)
 
         # --- 子球样式 ---
         group_child = QGroupBox("子球样式")
@@ -143,20 +168,43 @@ class SettingsDialog(QDialog):
         self._child_radius_slider.valueChanged.connect(self._apply_preview)
         fl_child.addRow("圆角", self._child_radius_slider)
 
-        gl.addWidget(group_child)
+        sl.addWidget(group_child)
 
-        # --- 主题 ---
-        group4 = QGroupBox("主题")
-        fl4 = QFormLayout(group4)
-        self._theme_combo = QComboBox()
-        self._theme_combo.addItem("浅色", "light")
-        self._theme_combo.addItem("深色", "dark")
-        self._theme_combo.currentIndexChanged.connect(self._apply_preview)
-        fl4.addRow("主题切换", self._theme_combo)
-        gl.addWidget(group4)
+        # --- 子球位置 ---
+        group_pos = QGroupBox("子球位置")
+        fl_pos = QFormLayout(group_pos)
+        self._pos_sliders = []
+        ball_names = ["OCR/翻译", "计划表", "快捷应用", "设置"]
+        for name in ball_names:
+            hbox = QHBoxLayout()
 
-        gl.addStretch()
-        tabs.addTab(general, "通用")
+            x_slider = QSlider(Qt.Orientation.Horizontal)
+            x_slider.setRange(-60, 90)
+            x_label = QLabel("0")
+            x_label.setFixedWidth(28)
+            x_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            x_slider.valueChanged.connect(lambda v, l=x_label: l.setText(str(v)))
+            x_slider.valueChanged.connect(self._apply_preview)
+
+            y_slider = QSlider(Qt.Orientation.Horizontal)
+            y_slider.setRange(-60, 100)
+            y_label = QLabel("0")
+            y_label.setFixedWidth(28)
+            y_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            y_slider.valueChanged.connect(lambda v, l=y_label: l.setText(str(v)))
+            y_slider.valueChanged.connect(self._apply_preview)
+
+            hbox.addWidget(x_slider, 1)
+            hbox.addWidget(x_label)
+            hbox.addWidget(y_slider, 1)
+            hbox.addWidget(y_label)
+            fl_pos.addRow(name, hbox)
+            self._pos_sliders.append((x_slider, y_slider))
+        sl.addWidget(group_pos)
+
+        sl.addStretch()
+        style_scroll.setWidget(style_tab)
+        tabs.addTab(style_scroll, "样式")
 
         # ── API 配置 tab ──────────────────────────────────────
         api_tab = QWidget()
@@ -434,6 +482,19 @@ class SettingsDialog(QDialog):
         self._child_radius_slider.setValue(cb.get("corner_radius", 18))
         self._child_radius_slider.blockSignals(False)
 
+        positions = fb.get("ball_positions", [])
+        for i, (x_slider, y_slider) in enumerate(self._pos_sliders):
+            x_slider.blockSignals(True)
+            y_slider.blockSignals(True)
+            if i < len(positions):
+                x_slider.setValue(positions[i].get("dx", 0))
+                y_slider.setValue(positions[i].get("dy", 0))
+            else:
+                x_slider.setValue(0)
+                y_slider.setValue(0)
+            x_slider.blockSignals(False)
+            y_slider.blockSignals(False)
+
         self._edge_cb.blockSignals(True)
         self._edge_cb.setChecked(fb.get("edge_adsorption", True))
         self._edge_cb.blockSignals(False)
@@ -462,16 +523,21 @@ class SettingsDialog(QDialog):
 
     def _apply_preview(self):
         self._config.set_preview("theme", self._theme_combo.currentData())
+        cb = {
+                "size": self._child_size_slider.value(),
+                "opacity": self._child_opacity_slider.value() / 100.0,
+                "corner_radius": self._child_radius_slider.value(),
+            }
         fb = {
             "size": self._size_slider.value(),
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
-            "child_ball": {
-                "size": self._child_size_slider.value(),
-                "opacity": self._child_opacity_slider.value() / 100.0,
-                "corner_radius": self._child_radius_slider.value(),
-            },
+            "child_ball": cb,
+            "ball_positions": [
+                {"dx": s[0].value(), "dy": s[1].value()}
+                for s in self._pos_sliders
+            ],
         }
         self._config.set_preview("float_ball", fb)
         self.settings_changed.emit()
@@ -480,16 +546,21 @@ class SettingsDialog(QDialog):
         self._config.set("auto_start", self._auto_start_cb.isChecked())
         self._config.set("global_hotkey", self._hotkey_edit.text())
         self._config.set("theme", self._theme_combo.currentData())
+        cb = {
+            "size": self._child_size_slider.value(),
+            "opacity": self._child_opacity_slider.value() / 100.0,
+            "corner_radius": self._child_radius_slider.value(),
+        }
         fb = {
             "size": self._size_slider.value(),
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
-            "child_ball": {
-                "size": self._child_size_slider.value(),
-                "opacity": self._child_opacity_slider.value() / 100.0,
-                "corner_radius": self._child_radius_slider.value(),
-            },
+            "child_ball": cb,
+            "ball_positions": [
+                {"dx": s[0].value(), "dy": s[1].value()}
+                for s in self._pos_sliders
+            ],
         }
         self._config.set("float_ball", fb)
         self._apply_auto_start(self._auto_start_cb.isChecked())
