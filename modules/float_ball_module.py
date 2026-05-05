@@ -24,12 +24,13 @@ _BALL_LABELS = [
 
 
 class FloatBallModule(QWidget):
-    def __init__(self, config_module, ocr_module=None, plan_module=None, app_launch_module=None):
+    def __init__(self, config_module, ocr_module=None, plan_module=None, app_launch_module=None, hotkey_mgr=None):
         super().__init__()
         self._config = config_module
         self._ocr_module = ocr_module
         self._plan_module = plan_module
         self._app_launch_module = app_launch_module
+        self._hotkey_mgr = hotkey_mgr
         self._dragging = False
         self._drag_offset = None
         self._suppress_dock = False
@@ -403,6 +404,8 @@ class FloatBallModule(QWidget):
             self._update_ball_items()
         self._update_mask()  # /* 磨砂背景修复 */
         self.update()
+        if self._hotkey_mgr:
+            self._hotkey_mgr.register(self._config.get("global_hotkey", "ctrl+alt+s"))
 
     def showEvent(self, event):
         super().showEvent(event)

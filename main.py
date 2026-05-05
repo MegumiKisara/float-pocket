@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from modules.config_module import DATA_DIR, ConfigModule, env_init
 from modules.float_ball_module import FloatBallModule
 from modules.app_launch_module import AppLaunchModule
+from modules.hotkey_module import HotkeyManager
 from modules.ocr_translate_module import OcrTranslateModule
 from modules.plan_module import PlanModule
 from modules.tray_module import TrayModule
@@ -51,7 +52,13 @@ if __name__ == "__main__":
     ocr_module = OcrTranslateModule()
     plan_module = PlanModule()
     app_launch_module = AppLaunchModule()
-    float_ball = FloatBallModule(config_module, ocr_module, plan_module, app_launch_module)
+    hotkey_mgr = HotkeyManager()
+    app.installNativeEventFilter(hotkey_mgr)
+    hotkey_mgr.register(config_module.get("global_hotkey", "ctrl+alt+s"))
+
+    float_ball = FloatBallModule(config_module, ocr_module, plan_module, app_launch_module, hotkey_mgr)
+    hotkey_mgr.triggered.connect(float_ball.toggle_visibility)
+
     tray_module = TrayModule(app, float_ball, config_module)
     tray_module.show()
 
