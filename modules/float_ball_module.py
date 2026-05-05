@@ -1,10 +1,8 @@
 from PySide6.QtCore import QByteArray, QSize, Qt, QEvent, QPoint, QPropertyAnimation, QRect, QTimer
-from PySide6.QtGui import QAction, QBitmap, QBrush, QColor, QCursor, QImage, QLinearGradient, QPainter, QPainterPath, QRadialGradient
+from PySide6.QtGui import QAction, QBitmap, QBrush, QColor, QCursor, QImage, QLinearGradient, QPainter, QPainterPath, QRadialGradient, QRegion
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
-import ctypes
-import sys
 import time
 
 from modules.settings_module import SettingsDialog
@@ -49,9 +47,11 @@ class FloatBallModule(QWidget):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool  # /* 磨砂背景修复 */
         )
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)  # /* 边框/锯齿修复 */
+        self.setAttribute(Qt.WA_NoSystemBackground)  # /* 磨砂背景修复 */
+        self.setAttribute(Qt.WA_StyledBackground, False)  # /* 磨砂背景修复 */
 
         self.setFixedSize(60, 60)
         self._has_positioned = False
@@ -78,18 +78,20 @@ class FloatBallModule(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)  # /* 边框/锯齿修复 */
 
         w, h = self.width(), self.height()
         fb = self._config.get("float_ball", {})
         icons = fb.get("icons", {})
 
+        # Clear to transparent, then draw balls for smooth per-pixel alpha edges /* 边框/锯齿修复 */
+        painter.setCompositionMode(QPainter.CompositionMode_Source)
+        painter.fillRect(0, 0, w, h, Qt.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+
         if not self._show_balls:
             self._draw_ball(painter, 0, 0, w, h, None, icons.get("main", ""))
         else:
-            # Fill entire area with near-invisible color so Windows doesn't
-            # pass clicks through transparent pixels (WS_EX_LAYERED per-pixel alpha)
-            painter.fillRect(0, 0, w, h, QColor(0, 0, 0, 1))
-
             self._draw_ball(painter, self._big_ball_rect.x(), self._big_ball_rect.y(),
                             self._big_ball_rect.width(), self._big_ball_rect.height(),
                             None, icons.get("main", ""))
@@ -266,6 +268,10 @@ class FloatBallModule(QWidget):
 
         self._ball_items = items
 
+    def _update_mask(self):
+        """Clear mask — per-pixel alpha handles smooth edges without 1-bit clipping /* 边框/锯齿修复 */"""
+        self.clearMask()
+
     def _get_child_ball_rect(self, index):
         cb = self._config.get("float_ball", {}).get("child_ball", {})
         child_size = cb.get("size", 36)
@@ -304,14 +310,14 @@ class FloatBallModule(QWidget):
         new_y = self._orig_pos.y() - self._big_ball_rect.y()
         self.setFixedSize(_EXPANDED_SIZE, _EXPANDED_SIZE)
         self.move(new_x, new_y)
-        self._remove_window_border()
+        self._update_mask()  # /* 磨砂背景修复 */
         self.update()
 
     def _collapse_balls(self):
         self._show_balls = False
         self.setFixedSize(self._orig_size)
         self.move(self._orig_pos)
-        self._remove_window_border()
+        self._update_mask()  # /* 磨砂背景修复 */
         self.update()
 
     def _dock_after_collapse(self):
@@ -395,68 +401,12 @@ class FloatBallModule(QWidget):
             self.setFixedSize(size, size)
         else:
             self._update_ball_items()
-        self._remove_window_border()
+        self._update_mask()  # /* 磨砂背景修复 */
         self.update()
-
-    def _remove_window_border(self):
-        if sys.platform != "win32":
-            return
-        try:
-            hwnd = int(self.winId())
-            user32 = ctypes.windll.user32
-
-            GWL_STYLE = -16
-            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-            style &= ~(0x00C00000 | 0x00040000 | 0x00400000 | 0x00800000)
-            style |= 0x80000000  # WS_POPUP
-            user32.SetWindowLongW(hwnd, GWL_STYLE, style)
-
-            GWL_EXSTYLE = -20
-            ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            ex &= ~(0x00000100 | 0x00000200 | 0x00020000)
-            ex |= 0x00080000 | 0x00000080  # WS_EX_LAYERED | WS_EX_TOOLWINDOW
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
-
-            user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010)
-
-            class ACCENTPOLICY(ctypes.Structure):
-                _fields_ = [
-                    ("AccentState", ctypes.c_uint),
-                    ("AccentFlags", ctypes.c_uint),
-                    ("GradientColor", ctypes.c_uint),
-                    ("AnimationId", ctypes.c_uint),
-                ]
-            class WINCOMPATTRDATA(ctypes.Structure):
-                _fields_ = [
-                    ("Attribute", ctypes.c_int),
-                    ("Data", ctypes.POINTER(ACCENTPOLICY)),
-                    ("SizeOfData", ctypes.c_size_t),
-                ]
-            accent = ACCENTPOLICY(4, 0, 0, 0)
-            data = WINCOMPATTRDATA(19, ctypes.pointer(accent), ctypes.sizeof(ACCENTPOLICY))
-            user32.SetWindowCompositionAttribute(hwnd, ctypes.byref(data))
-
-            class MARGINS(ctypes.Structure):
-                _fields_ = [("cxLeftWidth", ctypes.c_int), ("cxRightWidth", ctypes.c_int),
-                            ("cyTopHeight", ctypes.c_int), ("cyBottomHeight", ctypes.c_int)]
-            margins = MARGINS(-1, -1, -1, -1)
-            ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
-        except Exception:
-            pass
-
-    def nativeEvent(self, eventType, message):
-        if sys.platform == "win32" and eventType == b"windows_generic_MSG":
-            try:
-                msg = ctypes.wintypes.MSG.from_address(message)
-                # Only swallow hit-test when NOT expanded (balls need real hit-tests)
-                if msg.message == 0x0083 and not self._show_balls:
-                    return True, 0
-            except Exception:
-                pass
-        return super().nativeEvent(eventType, message)
 
     def showEvent(self, event):
         super().showEvent(event)
+        self._update_mask()  # /* 磨砂背景修复 */
         self._apply_settings()
 
     def eventFilter(self, obj, event):
