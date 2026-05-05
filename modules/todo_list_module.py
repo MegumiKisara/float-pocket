@@ -7,3 +7,9 @@ class TodoListModule(QWidget):
         self._config = config_module
         self.setWindowTitle("计划表")
         self.resize(400, 300)
+        # 统一样式
+        self.setStyleSheet("""
+            TodoListModule {
+                background-color: #F5F6F8;
+            }
+        """)

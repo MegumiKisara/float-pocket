@@ -7,3 +7,9 @@ class AppLauncherModule(QWidget):
         self._config = config_module
         self.setWindowTitle("快捷应用")
         self.resize(400, 300)
+        # 统一样式
+        self.setStyleSheet("""
+            AppLauncherModule {
+                background-color: #F5F6F8;
+            }
+        """)

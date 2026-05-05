@@ -152,11 +152,12 @@ class SettingsDialog(QDialog):
 
         self._toggle_key_btn = QPushButton("显示")
         self._toggle_key_btn.setFixedWidth(50)
+        self._toggle_key_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._toggle_key_btn.clicked.connect(self._toggle_api_key_visible)
         fl5.addRow("", self._toggle_key_btn)
 
         hint = QLabel("API Key 保存在本地 .env 文件中，不会提交到代码仓库")
-        hint.setStyleSheet("color: #888; font-size: 11px;")
+        hint.setStyleSheet("color: #86909C; font-size: 11px;")  # 新增样式
         fl5.addRow("", hint)
 
         al.addWidget(group5)
@@ -185,9 +186,11 @@ class SettingsDialog(QDialog):
         self._cat_combo = QComboBox()
         cat_manage_row.addWidget(self._cat_combo, 1)
         rename_cat_btn = QPushButton("重命名")
+        rename_cat_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         rename_cat_btn.clicked.connect(self._rename_category)
         cat_manage_row.addWidget(rename_cat_btn)
         del_cat_btn = QPushButton("删除分类")
+        del_cat_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         del_cat_btn.clicked.connect(self._delete_category)
         cat_manage_row.addWidget(del_cat_btn)
         cat_layout.addLayout(cat_manage_row)
@@ -203,7 +206,7 @@ class SettingsDialog(QDialog):
         add_app_btn.clicked.connect(self._add_app)
         add_app_row.addWidget(add_app_btn)
         add_app_hint = QLabel("选择 .exe 可执行文件路径")
-        add_app_hint.setStyleSheet("color: #888; font-size: 11px;")
+        add_app_hint.setStyleSheet("color: #86909C; font-size: 11px;")  # 新增样式
         add_app_row.addWidget(add_app_hint)
         add_app_row.addStretch()
         app_layout.addLayout(add_app_row)
@@ -232,16 +235,150 @@ class SettingsDialog(QDialog):
         gl6 = QVBoxLayout(group6)
 
         self._clear_plans_btn = QPushButton("清空所有待办")
+        self._clear_plans_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._clear_plans_btn.clicked.connect(self._clear_all_plans)
         gl6.addWidget(self._clear_plans_btn)
 
         self._reset_config_btn = QPushButton("重置所有配置为默认值")
+        self._reset_config_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._reset_config_btn.clicked.connect(self._reset_all_config)
         gl6.addWidget(self._reset_config_btn)
 
         dl.addWidget(group6)
         dl.addStretch()
         tabs.addTab(data_tab, "数据管理")
+
+        # ── 统一样式 ─────────────────────────────────────────
+        self.setStyleSheet("""
+            SettingsDialog {
+                background-color: #F5F6F8;
+            }
+            QGroupBox {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 16px 12px 12px 12px;
+                font-size: 14px;
+                font-weight: bold;
+                color: #1D2129;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 4px 8px;
+                color: #1D2129;
+            }
+            QLineEdit {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1D2129;
+            }
+            QLineEdit:focus {
+                border: 1px solid #165DFF;
+            }
+            QLineEdit[readOnly="true"] {
+                background-color: #F5F6F8;
+            }
+            QPushButton {
+                background-color: #E8F0FE;
+                color: #165DFF;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #DCE8FF;
+            }
+            QPushButton:pressed {
+                background-color: #C9DCFA;
+            }
+            QPushButton:disabled {
+                background-color: #F0F2F5;
+                color: #C9CDD4;
+            }
+            QComboBox {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1D2129;
+            }
+            QComboBox:focus {
+                border: 1px solid #165DFF;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 24px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 4px;
+                selection-background-color: #E8F0FE;
+                selection-color: #165DFF;
+            }
+            QTabWidget::pane {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 8px;
+            }
+            QTabBar::tab {
+                background-color: #F0F2F5;
+                color: #1D2129;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                margin-right: 4px;
+                font-size: 14px;
+            }
+            QTabBar::tab:selected {
+                background-color: #E8F0FE;
+                color: #165DFF;
+                font-weight: bold;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #E5E6EB;
+            }
+            QScrollArea {
+                border: none;
+            }
+            QCheckBox {
+                font-size: 14px;
+                color: #1D2129;
+                spacing: 6px;
+            }
+            QSlider::groove:horizontal {
+                border: none;
+                height: 6px;
+                background: #E5E6EB;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #165DFF;
+                border: none;
+                width: 16px;
+                height: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #3A7BD5;
+            }
+            QDialogButtonBox QPushButton {
+                background-color: #F0F2F5;
+                color: #1D2129;
+            }
+            QDialogButtonBox QPushButton:hover {
+                background-color: #E5E6EB;
+            }
+        """)
 
         # --- 按钮 ---
         btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -385,7 +522,7 @@ class SettingsDialog(QDialog):
         rl.addWidget(name_label)
 
         path_label = QLabel(app["path"])
-        path_label.setStyleSheet("color: #888; font-size: 11px;")
+        path_label.setStyleSheet("color: #86909C; font-size: 11px;")  # 新增样式
         path_label.setWordWrap(True)
         rl.addWidget(path_label, 1)
 
@@ -400,11 +537,13 @@ class SettingsDialog(QDialog):
 
         edit_btn = QPushButton("编辑")
         edit_btn.setFixedWidth(40)
+        edit_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         edit_btn.clicked.connect(lambda checked, a=app: self._edit_app(a))
         rl.addWidget(edit_btn)
 
         del_btn = QPushButton("×")
         del_btn.setFixedWidth(28)
+        del_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px;")  # 新增样式
         del_btn.clicked.connect(lambda checked, a=app: self._delete_app(a))
         rl.addWidget(del_btn)
 

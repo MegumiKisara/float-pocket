@@ -45,7 +45,7 @@ class AppLaunchModule(QWidget):
         self._mode_btn = QPushButton("全部不分类")
         self._mode_btn.setCheckable(False)
         self._mode_btn.clicked.connect(self._toggle_mode)
-        self._mode_btn.setStyleSheet("font-size: 12px;")
+        self._mode_btn.setStyleSheet("font-size: 12px; background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px;")  # 新增样式
         top_row.addWidget(self._mode_btn)
         layout.addLayout(top_row)
 
@@ -62,6 +62,17 @@ class AppLaunchModule(QWidget):
 
         self._scroll.setWidget(self._content)
         layout.addWidget(self._scroll, 1)
+
+        # ── 统一样式 ─────────────────────────────────────────
+        self.setStyleSheet("""
+            AppLaunchModule {
+                background-color: #F5F6F8;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
 
     # ── public ────────────────────────────────────────────────
 
@@ -125,16 +136,18 @@ class AppLaunchModule(QWidget):
             QPushButton {
                 text-align: left;
                 padding: 8px 12px;
-                font-size: 13px;
-                border: 1px solid transparent;
-                border-radius: 4px;
+                font-size: 14px;
+                background-color: #FFFFFF;
+                color: #1D2129;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                border: 1px solid #aaa;
-                background: #f0f0f0;
+                background-color: #F5F7FA;
+                border: 1px solid #165DFF;
             }
             QPushButton:pressed {
-                background: #e0e0e0;
+                background-color: #E8F0FE;
             }
         """)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)

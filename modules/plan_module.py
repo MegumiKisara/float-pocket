@@ -42,19 +42,21 @@ class _TaskItem(QWidget):
         layout.addWidget(self._title_edit, 1)
 
         self._edit_btn = QPushButton("编辑")
-        self._edit_btn.setFixedWidth(40)
+        self._edit_btn.setFixedWidth(60)  # 加宽以完整显示"编辑"/"保存"文字
+        self._edit_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._edit_btn.clicked.connect(self._toggle_edit)
         layout.addWidget(self._edit_btn)
 
         self._delete_btn = QPushButton("×")
         self._delete_btn.setFixedWidth(28)
+        self._delete_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px;")  # 新增样式
         self._delete_btn.clicked.connect(self._delete_task)
         layout.addWidget(self._delete_btn)
 
     def _update_style(self):
         if self._task["completed"]:
             self._title_edit.setStyleSheet(
-                "border: none; background: transparent; color: #999; text-decoration: line-through;"
+                "border: none; background: transparent; color: #86909C; text-decoration: line-through;"  # 新增样式
             )
         else:
             self._title_edit.setStyleSheet("border: none; background: transparent;")
@@ -72,7 +74,7 @@ class _TaskItem(QWidget):
             self._editing = True
             self._title_edit.setReadOnly(False)
             self._title_edit.setStyleSheet(
-                "border: 1px solid #aaa; background: white; padding: 1px 2px;"
+                "border: 1px solid #165DFF; background: white; padding: 2px 4px; border-radius: 4px;"  # 新增样式
             )
             self._title_edit.setFocus()
             self._title_edit.selectAll()
@@ -127,7 +129,7 @@ class PlanModule(QWidget):
         self._pin_btn = QPushButton("📌 置顶")
         self._pin_btn.setCheckable(True)
         self._pin_btn.clicked.connect(self._toggle_pin)
-        self._pin_btn.setStyleSheet("font-size: 12px;")
+        self._pin_btn.setStyleSheet("font-size: 12px; background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px;")  # 新增样式
         top_row.addWidget(self._pin_btn)
         layout.addLayout(top_row)
 
@@ -161,9 +163,50 @@ class PlanModule(QWidget):
         bottom_row = QHBoxLayout()
         bottom_row.addStretch()
         self._clear_btn = QPushButton("清空已完成")
+        self._clear_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._clear_btn.clicked.connect(self._clear_completed)
         bottom_row.addWidget(self._clear_btn)
         layout.addLayout(bottom_row)
+
+        # ── 统一样式 ─────────────────────────────────────────
+        self.setStyleSheet("""
+            PlanModule {
+                background-color: #F5F6F8;
+            }
+            QLineEdit {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1D2129;
+            }
+            QLineEdit:focus {
+                border: 1px solid #165DFF;
+            }
+            QPushButton {
+                background-color: #E8F0FE;
+                color: #165DFF;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #DCE8FF;
+            }
+            QPushButton:pressed {
+                background-color: #C9DCFA;
+            }
+            QPushButton:disabled {
+                background-color: #F0F2F5;
+                color: #C9CDD4;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
 
     # ── public ────────────────────────────────────────────────
 

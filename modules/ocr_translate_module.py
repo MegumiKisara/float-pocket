@@ -72,7 +72,7 @@ class OcrTranslateModule(QWidget):
 
         # ── Status hint ───────────────────────────────────────
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #888; font-size: 12px;")
+        self._status_label.setStyleSheet("color: #86909C; font-size: 12px;")  # 新增样式
         layout.addWidget(self._status_label)
 
         # ── Output area ───────────────────────────────────────
@@ -81,6 +81,46 @@ class OcrTranslateModule(QWidget):
         self._output_edit.setReadOnly(True)
         self._output_edit.setPlaceholderText("OCR 或翻译结果将显示在这里…")
         layout.addWidget(self._output_edit)
+
+        # ── 统一样式 ─────────────────────────────────────────
+        self.setStyleSheet("""
+            OcrTranslateModule {
+                background-color: #F5F6F8;
+            }
+            QTextEdit {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1D2129;
+            }
+            QTextEdit:focus {
+                border: 1px solid #165DFF;
+            }
+            QPushButton {
+                background-color: #E8F0FE;
+                color: #165DFF;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #DCE8FF;
+            }
+            QPushButton:pressed {
+                background-color: #C9DCFA;
+            }
+            QPushButton:disabled {
+                background-color: #F0F2F5;
+                color: #C9CDD4;
+            }
+            QLabel {
+                font-size: 14px;
+                color: #1D2129;
+            }
+        """)
 
     # ── event filter: Ctrl+V → image paste ───────────────────
 
