@@ -151,7 +151,7 @@ class SettingsDialog(QDialog):
         fl5.addRow("API Key", self._api_key_edit)
 
         self._toggle_key_btn = QPushButton("显示")
-        self._toggle_key_btn.setFixedWidth(50)
+        self._toggle_key_btn.setFixedWidth(60)
         self._toggle_key_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         self._toggle_key_btn.clicked.connect(self._toggle_api_key_visible)
         fl5.addRow("", self._toggle_key_btn)
@@ -536,7 +536,7 @@ class SettingsDialog(QDialog):
         rl.addWidget(cat_combo)
 
         edit_btn = QPushButton("编辑")
-        edit_btn.setFixedWidth(40)
+        edit_btn.setFixedWidth(60)
         edit_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
         edit_btn.clicked.connect(lambda checked, a=app: self._edit_app(a))
         rl.addWidget(edit_btn)

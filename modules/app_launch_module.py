@@ -1,7 +1,6 @@
 import subprocess
 
-from PySide6.QtCore import QFileInfo, QSize, Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import QFileInfo, Qt
 from PySide6.QtWidgets import (
     QFileIconProvider,
     QHBoxLayout,
@@ -14,6 +13,86 @@ from PySide6.QtWidgets import (
 )
 
 from modules.app_launch_storage import AppLaunchStorage
+
+
+class _AppItem(QWidget):
+    def __init__(self, app, storage):
+        super().__init__()
+        self._app = app
+        self._storage = storage
+        self.setFixedSize(80, 80)
+        self.setObjectName("AppItem")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(4)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        self._icon_label = QLabel()
+        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info = QFileInfo(self._app["path"])
+        if info.exists():
+            provider = QFileIconProvider()
+            icon = provider.icon(info)
+            pixmap = icon.pixmap(36, 36)
+            self._icon_label.setPixmap(pixmap)
+        layout.addWidget(self._icon_label)
+
+        self._name_label = QLabel(self._app["name"])
+        self._name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._name_label.setWordWrap(True)
+        self._name_label.setMaximumWidth(72)
+        self._name_label.setStyleSheet(
+            "font-size: 11px; color: #1D2129; border: none; background: transparent;"
+        )
+        self._name_label.hide()
+        layout.addWidget(self._name_label)
+
+        self._update_style(False)
+
+    def _update_style(self, hovered):
+        if hovered:
+            self.setStyleSheet("""
+                #AppItem {
+                    background-color: #F5F7FA;
+                    border: 1px solid #165DFF;
+                    border-radius: 8px;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                #AppItem {
+                    background-color: #FFFFFF;
+                    border: 1px solid #E5E6EB;
+                    border-radius: 8px;
+                }
+            """)
+
+    def enterEvent(self, event):
+        self._name_label.show()
+        self._update_style(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._name_label.hide()
+        self._update_style(False)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._launch_app()
+
+    def _launch_app(self):
+        try:
+            subprocess.Popen(self._app["path"], shell=True)
+        except Exception as e:
+            QMessageBox.critical(self, "启动失败", f"无法启动 {self._app['name']}：\n{e}")
+            return
+        self.window().close()
 
 
 class AppLaunchModule(QWidget):
@@ -117,42 +196,23 @@ class AppLaunchModule(QWidget):
             title.setStyleSheet("font-weight: bold; font-size: 13px; padding: 4px 0;")
             self._content_layout.insertWidget(self._content_layout.count() - 1, title)
 
-            for app in apps:
-                self._add_app_button(app)
+            self._add_app_grid(apps)
 
     def _render_flat(self):
-        for app in self._storage.get_apps():
-            self._add_app_button(app)
+        self._add_app_grid(self._storage.get_apps())
 
-    def _add_app_button(self, app):
-        btn = QPushButton(app["name"])
-        info = QFileInfo(app["path"])
-        if info.exists():
-            provider = QFileIconProvider()
-            icon = provider.icon(info)
-            btn.setIcon(icon)
-            btn.setIconSize(QSize(24, 24))
-        btn.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px 12px;
-                font-size: 14px;
-                background-color: #FFFFFF;
-                color: #1D2129;
-                border: 1px solid #E5E6EB;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #F5F7FA;
-                border: 1px solid #165DFF;
-            }
-            QPushButton:pressed {
-                background-color: #E8F0FE;
-            }
-        """)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.clicked.connect(lambda checked, a=app: self._launch_app(a))
-        self._content_layout.insertWidget(self._content_layout.count() - 1, btn)
+    def _add_app_grid(self, apps):
+        items_per_row = 4
+        for i in range(0, len(apps), items_per_row):
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setSpacing(8)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            for app in apps[i:i + items_per_row]:
+                item = _AppItem(app, self._storage)
+                row_layout.addWidget(item)
+            row_layout.addStretch()
+            self._content_layout.insertWidget(self._content_layout.count() - 1, row)
 
     # ── launch ────────────────────────────────────────────────
 
