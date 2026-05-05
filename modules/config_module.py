@@ -1,9 +1,14 @@
 import json
 import os
+import sys
 
 from dotenv import load_dotenv, set_key
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+DATA_DIR = os.path.join(
+    os.path.dirname(sys.executable) if getattr(sys, 'frozen', False)
+    else os.path.dirname(os.path.dirname(__file__)),
+    "data"
+)
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 ENV_FILE = os.path.join(DATA_DIR, ".env")
 

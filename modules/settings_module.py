@@ -828,18 +828,22 @@ class SettingsDialog(QDialog):
 
     @staticmethod
     def _apply_auto_start(enabled):
+        import os
         import sys
         import winreg
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as k:
                 if enabled:
-                    exe_path = sys.executable
-                    if exe_path.endswith("pythonw.exe"):
-                        script = __file__.rsplit("modules", 1)[0]
-                        winreg.SetValueEx(k, "FloatPocket", 0, winreg.REG_SZ, f'"{exe_path}" "{script}main.py"')
-                    else:
-                        winreg.SetValueEx(k, "FloatPocket", 0, winreg.REG_SZ, exe_path)
+                    exe = sys.executable
+                    # Prefer pythonw.exe to avoid console window on startup
+                    if exe.endswith("python.exe"):
+                        pyw = exe[:-4] + "w.exe"
+                        if os.path.exists(pyw):
+                            exe = pyw
+                    script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
+                    winreg.SetValueEx(k, "FloatPocket", 0, winreg.REG_SZ,
+                                      f'"{exe}" "{script}"')
                 else:
                     try:
                         winreg.DeleteValue(k, "FloatPocket")

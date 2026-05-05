@@ -34,6 +34,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    env_init()
+
     guard = SingleInstanceGuard()
     if not guard.ok:
         QMessageBox.warning(None, "FloatPocket", "FloatPocket 已在运行中")
@@ -45,7 +47,6 @@ if __name__ == "__main__":
     # ✅ Windows 去掉白边框
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
 
-    env_init()
     config_module = ConfigModule()
     ocr_module = OcrTranslateModule()
     plan_module = PlanModule()
