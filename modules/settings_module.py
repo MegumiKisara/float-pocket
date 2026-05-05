@@ -540,8 +540,9 @@ class SettingsDialog(QDialog):
         self._icon_svgs = dict(fb.get("icons", {}))
         self._icon_loading = True
         self._icon_combo.setCurrentIndex(0)
+        self._icon_edit.setPlainText(self._icon_svgs.get("main", ""))
         self._icon_loading = False
-        self._on_icon_ball_changed(0)
+        self._update_icon_preview()
 
         self._edge_cb.blockSignals(True)
         self._edge_cb.setChecked(fb.get("edge_adsorption", True))
