@@ -1,5 +1,6 @@
-from PySide6.QtCore import QSize, Qt, QEvent, QPoint, QPropertyAnimation, QRect, QTimer
+from PySide6.QtCore import QByteArray, QSize, Qt, QEvent, QPoint, QPropertyAnimation, QRect, QTimer
 from PySide6.QtGui import QAction, QBitmap, QBrush, QColor, QCursor, QImage, QLinearGradient, QPainter, QPainterPath, QRadialGradient
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 import ctypes
@@ -79,28 +80,32 @@ class FloatBallModule(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
+        fb = self._config.get("float_ball", {})
+        icons = fb.get("icons", {})
 
         if not self._show_balls:
-            self._draw_ball(painter, 0, 0, w, h, None)
+            self._draw_ball(painter, 0, 0, w, h, None, icons.get("main", ""))
         else:
             # Fill entire area with near-invisible color so Windows doesn't
             # pass clicks through transparent pixels (WS_EX_LAYERED per-pixel alpha)
             painter.fillRect(0, 0, w, h, QColor(0, 0, 0, 1))
 
             self._draw_ball(painter, self._big_ball_rect.x(), self._big_ball_rect.y(),
-                            self._big_ball_rect.width(), self._big_ball_rect.height(), None)
+                            self._big_ball_rect.width(), self._big_ball_rect.height(),
+                            None, icons.get("main", ""))
 
-            cb = self._config.get("float_ball", {}).get("child_ball", {})
+            cb = fb.get("child_ball", {})
             child_size = cb.get("size", 36)
             child_opacity = cb.get("opacity", 0.85)
             child_radius = min(cb.get("corner_radius", 18), child_size // 2)
 
-            for _, char, rect in self._ball_items:
+            for i, (_, char, rect) in enumerate(self._ball_items):
+                svg = icons.get(f"child_{i}", "")
                 self._draw_ball(painter, rect.x(), rect.y(),
                                 child_size, child_size,
-                                (char, child_opacity, child_radius))
+                                (char, child_opacity, child_radius), svg)
 
-    def _draw_ball(self, painter, x, y, w, h, overlay=None):
+    def _draw_ball(self, painter, x, y, w, h, overlay=None, svg_data=""):
         fb = self._config.get("float_ball", {})
         opacity = fb.get("opacity", 0.8)
         r = min(fb.get("corner_radius", 8), w // 2)
@@ -140,7 +145,12 @@ class FloatBallModule(QWidget):
         highlight.setColorAt(1, QColor(255, 255, 255, 0))
         painter.fillRect(QRect(x, y, w, h), QBrush(highlight))
 
-        if overlay:
+        if svg_data:
+            # 4. SVG icon
+            renderer = QSvgRenderer(QByteArray(svg_data.encode("utf-8")))
+            margin = int(w * 0.15)
+            renderer.render(painter, QRect(x + margin, y + margin, w - margin * 2, h - margin * 2))
+        elif overlay:
             # 4. Character text for child balls
             char = overlay[0]
             painter.setClipRect(QRect(x, y, w, h))

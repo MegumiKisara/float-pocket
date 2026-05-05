@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -65,6 +66,9 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self._config = config_module
         self._app_storage = AppLaunchStorage()
+        self._icon_svgs = {}
+        self._icon_loading = False
+        self._icon_prev_idx = 0
         self.setWindowTitle("通用设置")
         self.setFixedSize(540, 620)
         self._setup_ui()
@@ -201,6 +205,44 @@ class SettingsDialog(QDialog):
             fl_pos.addRow(name, hbox)
             self._pos_sliders.append((x_slider, y_slider))
         sl.addWidget(group_pos)
+
+        # --- 图标 ---
+        group_icons = QGroupBox("图标")
+        icons_layout = QVBoxLayout(group_icons)
+
+        selector_row = QHBoxLayout()
+        selector_row.addWidget(QLabel("选择球:"))
+        self._icon_combo = QComboBox()
+        self._icon_combo.addItem("主球", "main")
+        self._icon_combo.addItem("OCR/翻译", "child_0")
+        self._icon_combo.addItem("计划表", "child_1")
+        self._icon_combo.addItem("快捷应用", "child_2")
+        self._icon_combo.addItem("设置", "child_3")
+        selector_row.addWidget(self._icon_combo, 1)
+        self._icon_clear_btn = QPushButton("清空")
+        self._icon_clear_btn.setFixedWidth(60)
+        self._icon_clear_btn.clicked.connect(self._clear_icon)
+        selector_row.addWidget(self._icon_clear_btn)
+        icons_layout.addLayout(selector_row)
+
+        self._icon_edit = QPlainTextEdit()
+        self._icon_edit.setPlaceholderText("在此粘贴 SVG 代码，留空使用默认文字图标")
+        self._icon_edit.setMaximumHeight(120)
+        self._icon_edit.setStyleSheet("font-family: monospace; font-size: 12px;")
+        self._icon_edit.textChanged.connect(self._on_icon_text_changed)
+        self._icon_combo.currentIndexChanged.connect(self._on_icon_ball_changed)
+        icons_layout.addWidget(self._icon_edit)
+
+        preview_row = QHBoxLayout()
+        preview_row.addWidget(QLabel("预览:"))
+        self._icon_preview = QLabel()
+        self._icon_preview.setFixedSize(48, 48)
+        self._icon_preview.setStyleSheet("border: 1px solid #E5E6EB; border-radius: 6px; background: white;")
+        preview_row.addWidget(self._icon_preview)
+        preview_row.addStretch()
+        icons_layout.addLayout(preview_row)
+
+        sl.addWidget(group_icons)
 
         sl.addStretch()
         style_scroll.setWidget(style_tab)
@@ -495,6 +537,12 @@ class SettingsDialog(QDialog):
             x_slider.blockSignals(False)
             y_slider.blockSignals(False)
 
+        self._icon_svgs = dict(fb.get("icons", {}))
+        self._icon_loading = True
+        self._icon_combo.setCurrentIndex(0)
+        self._icon_loading = False
+        self._on_icon_ball_changed(0)
+
         self._edge_cb.blockSignals(True)
         self._edge_cb.setChecked(fb.get("edge_adsorption", True))
         self._edge_cb.blockSignals(False)
@@ -521,6 +569,48 @@ class SettingsDialog(QDialog):
             self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
             self._toggle_key_btn.setText("显示")
 
+    def _on_icon_ball_changed(self, idx):
+        if self._icon_loading:
+            return
+        prev_key = self._icon_combo.itemData(getattr(self, "_icon_prev_idx", 0))
+        self._icon_svgs[prev_key] = self._icon_edit.toPlainText()
+        key = self._icon_combo.itemData(idx)
+        self._icon_edit.blockSignals(True)
+        self._icon_edit.setPlainText(self._icon_svgs.get(key, ""))
+        self._icon_edit.blockSignals(False)
+        self._icon_prev_idx = idx
+        self._update_icon_preview()
+
+    def _on_icon_text_changed(self):
+        if self._icon_loading:
+            return
+        key = self._icon_combo.currentData()
+        self._icon_svgs[key] = self._icon_edit.toPlainText()
+        self._update_icon_preview()
+        self._apply_preview()
+
+    def _clear_icon(self):
+        self._icon_edit.clear()
+
+    def _update_icon_preview(self):
+        svg = self._icon_edit.toPlainText()
+        if svg:
+            try:
+                from PySide6.QtCore import QByteArray
+                from PySide6.QtGui import QPixmap, QPainter
+                from PySide6.QtSvg import QSvgRenderer
+                renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+                pixmap = QPixmap(48, 48)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                p = QPainter(pixmap)
+                renderer.render(p)
+                p.end()
+                self._icon_preview.setPixmap(pixmap)
+            except Exception:
+                self._icon_preview.clear()
+        else:
+            self._icon_preview.clear()
+
     def _apply_preview(self):
         self._config.set_preview("theme", self._theme_combo.currentData())
         cb = {
@@ -528,6 +618,7 @@ class SettingsDialog(QDialog):
                 "opacity": self._child_opacity_slider.value() / 100.0,
                 "corner_radius": self._child_radius_slider.value(),
             }
+        self._icon_svgs[self._icon_combo.currentData()] = self._icon_edit.toPlainText()
         fb = {
             "size": self._size_slider.value(),
             "opacity": self._opacity_slider.value() / 100.0,
@@ -538,6 +629,7 @@ class SettingsDialog(QDialog):
                 {"dx": s[0].value(), "dy": s[1].value()}
                 for s in self._pos_sliders
             ],
+            "icons": dict(self._icon_svgs),
         }
         self._config.set_preview("float_ball", fb)
         self.settings_changed.emit()
@@ -551,6 +643,7 @@ class SettingsDialog(QDialog):
             "opacity": self._child_opacity_slider.value() / 100.0,
             "corner_radius": self._child_radius_slider.value(),
         }
+        self._icon_svgs[self._icon_combo.currentData()] = self._icon_edit.toPlainText()
         fb = {
             "size": self._size_slider.value(),
             "opacity": self._opacity_slider.value() / 100.0,
@@ -561,6 +654,7 @@ class SettingsDialog(QDialog):
                 {"dx": s[0].value(), "dy": s[1].value()}
                 for s in self._pos_sliders
             ],
+            "icons": dict(self._icon_svgs),
         }
         self._config.set("float_ball", fb)
         self._apply_auto_start(self._auto_start_cb.isChecked())
