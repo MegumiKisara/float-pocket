@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
 
 from modules.app_launch_storage import AppLaunchStorage
 from modules.config_module import CONFIG_FILE, DEFAULT_CONFIG, env_get_api_key, env_set_api_key
-from modules.hotkey_module import can_register
 from modules.plan_storage import PlanStorage
 
 
@@ -63,9 +62,10 @@ class _HotkeyEdit(QLineEdit):
 class SettingsDialog(QDialog):
     settings_changed = Signal()
 
-    def __init__(self, config_module, parent=None):
+    def __init__(self, config_module, parent=None, hotkey_mgr=None):
         super().__init__(parent)
         self._config = config_module
+        self._hotkey_mgr = hotkey_mgr
         self._app_storage = AppLaunchStorage()
         self._icon_svgs = {}
         self._icon_loading = False
@@ -638,7 +638,7 @@ class SettingsDialog(QDialog):
 
     def accept(self):
         hotkey = self._hotkey_edit.text()
-        if hotkey and not can_register(hotkey):
+        if hotkey and self._hotkey_mgr and not self._hotkey_mgr.can_register(hotkey):
             QMessageBox.warning(
                 self, "快捷键被占用",
                 f"快捷键「{hotkey}」被系统或其他程序占用，请换一个组合。\n\n"

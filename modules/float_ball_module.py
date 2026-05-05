@@ -389,7 +389,7 @@ class FloatBallModule(QWidget):
 
     def _open_settings(self):
         self._settings_open = True
-        dialog = SettingsDialog(self._config, self)
+        dialog = SettingsDialog(self._config, self, self._hotkey_mgr)
         dialog.settings_changed.connect(self._apply_settings)
         dialog.exec()
         self._settings_open = False
@@ -464,13 +464,15 @@ class FloatBallModule(QWidget):
             return True
         return super().eventFilter(obj, event)
 
-    def toggle_visibility(self):
+    def toggle_visibility(self, expand=False):
         if self.isVisible():
             self.hide()
         else:
             self._ensure_position()
             self.show()
             self.raise_()
+            if expand:
+                self._expand_balls()
 
     def _ensure_position(self):
         screen = QApplication.primaryScreen()

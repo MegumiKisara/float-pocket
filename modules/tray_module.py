@@ -64,7 +64,7 @@ class TrayModule(QSystemTrayIcon):
         if not self.float_ball.isVisible():
             self.float_ball.toggle_visibility()
         self.float_ball._settings_open = True
-        dialog = SettingsDialog(self.config, self.float_ball)
+        dialog = SettingsDialog(self.config, self.float_ball, self.float_ball._hotkey_mgr)
         dialog.settings_changed.connect(self.float_ball._apply_settings)
         dialog.exec()
         self.float_ball._settings_open = False

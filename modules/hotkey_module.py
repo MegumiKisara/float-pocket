@@ -1,9 +1,11 @@
 import ctypes
-import ctypes.wintypes
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
-WM_HOTKEY = 0x0312
+VK_CONTROL = 0x11
+VK_MENU = 0x12  # Alt
+VK_SHIFT = 0x10
+
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
@@ -30,33 +32,22 @@ _MOD_MAP = {
 }
 
 
-def can_register(hotkey_str: str) -> bool:
-    """Test if a hotkey can be registered (not blocked by the system)."""
-    parts = hotkey_str.lower().split("+")
-    mods = 0
-    vk = 0
-    for part in parts:
-        if part in _MOD_MAP:
-            mods |= _MOD_MAP[part]
-        elif part in _VK_TABLE:
-            vk = _VK_TABLE[part]
-    if not vk:
-        return False
-    user32 = ctypes.windll.user32
-    ret = user32.RegisterHotKey(None, 0, mods, vk)
-    if ret:
-        user32.UnregisterHotKey(None, 0)
-        return True
-    return False
-
-
-class HotkeyManager(QObject, QAbstractNativeEventFilter):
+class HotkeyManager(QObject):
     triggered = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._id = 1
-        self._registered = False
+        self._vk = 0
+        self._mod_vks = set()
+        self._was_down = False
+        self._hotkey_str = ""
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._poll)
+        self._timer.setInterval(150)
+
+    @property
+    def current_hotkey(self):
+        return self._hotkey_str
 
     def parse(self, hotkey_str: str):
         parts = hotkey_str.lower().split("+")
@@ -75,23 +66,51 @@ class HotkeyManager(QObject, QAbstractNativeEventFilter):
             hotkey_str = fallback
         mods, vk = self.parse(hotkey_str)
         if not vk:
+            self._hotkey_str = ""
             return False
-        user32 = ctypes.windll.user32
-        ret = user32.RegisterHotKey(None, self._id, mods, vk)
-        self._registered = bool(ret)
-        return self._registered
+
+        self._vk = vk
+        self._mod_vks = set()
+        if mods & MOD_CONTROL:
+            self._mod_vks.add(VK_CONTROL)
+        if mods & MOD_ALT:
+            self._mod_vks.add(VK_MENU)
+        if mods & MOD_SHIFT:
+            self._mod_vks.add(VK_SHIFT)
+        self._hotkey_str = hotkey_str
+        self._was_down = False
+        self._timer.start()
+        return True
 
     def unregister(self):
-        if self._registered:
-            ctypes.windll.user32.UnregisterHotKey(None, self._id)
-            self._registered = False
+        self._timer.stop()
+        self._hotkey_str = ""
+        self._vk = 0
+        self._mod_vks.clear()
 
-    def nativeEventFilter(self, eventType, message):
-        try:
-            msg = ctypes.cast(message, ctypes.POINTER(ctypes.wintypes.MSG)).contents
-            if msg.message == WM_HOTKEY and msg.wParam == self._id:
-                self.triggered.emit()
-                return True, 0
-        except Exception:
-            pass
-        return False, 0
+    def can_register(self, hotkey_str: str) -> bool:
+        if hotkey_str == self._hotkey_str:
+            return True
+        mods, vk = self.parse(hotkey_str)
+        if not vk:
+            return False
+        user32 = ctypes.windll.user32
+        ret = user32.RegisterHotKey(None, 0, mods, vk)
+        if ret:
+            user32.UnregisterHotKey(None, 0)
+            return True
+        return False
+
+    def _poll(self):
+        user32 = ctypes.windll.user32
+        for mod_vk in self._mod_vks:
+            if not (user32.GetAsyncKeyState(mod_vk) & 0x8000):
+                self._was_down = False
+                return
+        if not (user32.GetAsyncKeyState(self._vk) & 0x8000):
+            self._was_down = False
+            return
+
+        if not self._was_down:
+            self._was_down = True
+            self.triggered.emit()

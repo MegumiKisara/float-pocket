@@ -53,11 +53,10 @@ if __name__ == "__main__":
     plan_module = PlanModule()
     app_launch_module = AppLaunchModule()
     hotkey_mgr = HotkeyManager()
-    app.installNativeEventFilter(hotkey_mgr)
     hotkey_mgr.register(config_module.get("global_hotkey", ""))
 
     float_ball = FloatBallModule(config_module, ocr_module, plan_module, app_launch_module, hotkey_mgr)
-    hotkey_mgr.triggered.connect(float_ball.toggle_visibility)
+    hotkey_mgr.triggered.connect(lambda: float_ball.toggle_visibility(expand=True))
 
     tray_module = TrayModule(app, float_ball, config_module)
     tray_module.show()
