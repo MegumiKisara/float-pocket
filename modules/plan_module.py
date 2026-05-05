@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -34,12 +35,10 @@ class _TaskItem(QWidget):
         self._checkbox.stateChanged.connect(self._toggle_completed)
         layout.addWidget(self._checkbox)
 
-        self._title_edit = QLineEdit(self._task["title"])
-        self._title_edit.setReadOnly(True)
-        self._title_edit.setStyleSheet("border: none; background: transparent;")
-        self._update_style()
-        self._title_edit.returnPressed.connect(self._save_edit)
-        layout.addWidget(self._title_edit, 1)
+        self._title_display = QLabel(self._task["title"])
+        self._title_display.setWordWrap(True)
+        self._update_display_style()
+        layout.addWidget(self._title_display, 1)
 
         self._edit_btn = QPushButton("编辑")
         self._edit_btn.setFixedWidth(60)  # 加宽以完整显示"编辑"/"保存"文字
@@ -53,42 +52,33 @@ class _TaskItem(QWidget):
         self._delete_btn.clicked.connect(self._delete_task)
         layout.addWidget(self._delete_btn)
 
-    def _update_style(self):
+    def _update_display_style(self):
         if self._task["completed"]:
-            self._title_edit.setStyleSheet(
-                "border: none; background: transparent; color: #86909C; text-decoration: line-through;"  # 新增样式
+            self._title_display.setStyleSheet(
+                "border: none; background: transparent; color: #86909C; font-size: 14px;"  # 新增样式
             )
+            font = self._title_display.font()
+            font.setStrikeOut(True)
+            self._title_display.setFont(font)
         else:
-            self._title_edit.setStyleSheet("border: none; background: transparent;")
+            self._title_display.setStyleSheet("border: none; background: transparent; color: #1D2129; font-size: 14px;")
+            font = self._title_display.font()
+            font.setStrikeOut(False)
+            self._title_display.setFont(font)
 
     def _toggle_completed(self, state):
         completed = state == Qt.CheckState.Checked.value
         self._storage.update(self._task["id"], completed=completed)
         self._task["completed"] = completed
-        self._update_style()
+        self._update_display_style()
 
     def _toggle_edit(self):
-        if self._editing:
-            self._save_edit()
-        else:
-            self._editing = True
-            self._title_edit.setReadOnly(False)
-            self._title_edit.setStyleSheet(
-                "border: 1px solid #165DFF; background: white; padding: 2px 4px; border-radius: 4px;"  # 新增样式
-            )
-            self._title_edit.setFocus()
-            self._title_edit.selectAll()
-            self._edit_btn.setText("保存")
-
-    def _save_edit(self):
-        title = self._title_edit.text().strip()
-        if title:
-            self._storage.update(self._task["id"], title=title)
-            self._task["title"] = title
-        self._editing = False
-        self._title_edit.setReadOnly(True)
-        self._update_style()
-        self._edit_btn.setText("编辑")
+        from PySide6.QtWidgets import QInputDialog
+        text, ok = QInputDialog.getText(self, "编辑待办", "内容：", text=self._task["title"])
+        if ok and text.strip():
+            self._storage.update(self._task["id"], title=text.strip())
+            self._task["title"] = text.strip()
+            self._title_display.setText(text.strip())
 
     def _delete_task(self):
         reply = QMessageBox.question(
