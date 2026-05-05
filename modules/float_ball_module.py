@@ -405,7 +405,7 @@ class FloatBallModule(QWidget):
         self._update_mask()  # /* 磨砂背景修复 */
         self.update()
         if self._hotkey_mgr:
-            self._hotkey_mgr.register(self._config.get("global_hotkey", "ctrl+alt+s"))
+            self._hotkey_mgr.register(self._config.get("global_hotkey", ""))
 
     def showEvent(self, event):
         super().showEvent(event)

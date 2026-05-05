@@ -12,7 +12,7 @@ MOD_WIN = 0x0008
 _VK_TABLE = {
     **{chr(ord("a") + i): 0x41 + i for i in range(26)},
     **{str(i): 0x30 + i for i in range(10)},
-    **{f"f{i}": 0x70 + i for i in range(1, 13)},
+    **{f"f{i}": 0x6F + i for i in range(1, 13)},
     "space": 0x20,
     "enter": 0x0D,
     "tab": 0x09,
@@ -28,6 +28,26 @@ _MOD_MAP = {
     "win": MOD_WIN,
     "meta": MOD_WIN,
 }
+
+
+def can_register(hotkey_str: str) -> bool:
+    """Test if a hotkey can be registered (not blocked by the system)."""
+    parts = hotkey_str.lower().split("+")
+    mods = 0
+    vk = 0
+    for part in parts:
+        if part in _MOD_MAP:
+            mods |= _MOD_MAP[part]
+        elif part in _VK_TABLE:
+            vk = _VK_TABLE[part]
+    if not vk:
+        return False
+    user32 = ctypes.windll.user32
+    ret = user32.RegisterHotKey(None, 0, mods, vk)
+    if ret:
+        user32.UnregisterHotKey(None, 0)
+        return True
+    return False
 
 
 class HotkeyManager(QObject, QAbstractNativeEventFilter):
@@ -49,8 +69,10 @@ class HotkeyManager(QObject, QAbstractNativeEventFilter):
                 vk = _VK_TABLE[part]
         return mods, vk
 
-    def register(self, hotkey_str: str):
+    def register(self, hotkey_str: str, fallback: str = "ctrl+alt+s"):
         self.unregister()
+        if not hotkey_str or not hotkey_str.strip():
+            hotkey_str = fallback
         mods, vk = self.parse(hotkey_str)
         if not vk:
             return False
@@ -65,9 +87,11 @@ class HotkeyManager(QObject, QAbstractNativeEventFilter):
             self._registered = False
 
     def nativeEventFilter(self, eventType, message):
-        if eventType in (b"windows_generic_MSG", "windows_generic_MSG"):
+        try:
             msg = ctypes.cast(message, ctypes.POINTER(ctypes.wintypes.MSG)).contents
             if msg.message == WM_HOTKEY and msg.wParam == self._id:
                 self.triggered.emit()
                 return True, 0
+        except Exception:
+            pass
         return False, 0

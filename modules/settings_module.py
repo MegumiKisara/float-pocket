@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from modules.app_launch_storage import AppLaunchStorage
 from modules.config_module import CONFIG_FILE, DEFAULT_CONFIG, env_get_api_key, env_set_api_key
+from modules.hotkey_module import can_register
 from modules.plan_storage import PlanStorage
 
 
@@ -636,8 +637,16 @@ class SettingsDialog(QDialog):
         self.settings_changed.emit()
 
     def accept(self):
+        hotkey = self._hotkey_edit.text()
+        if hotkey and not can_register(hotkey):
+            QMessageBox.warning(
+                self, "快捷键被占用",
+                f"快捷键「{hotkey}」被系统或其他程序占用，请换一个组合。\n\n"
+                "提示：Alt+F4 被系统保留，请使用其他 F 键。"
+            )
+            return
         self._config.set("auto_start", self._auto_start_cb.isChecked())
-        self._config.set("global_hotkey", self._hotkey_edit.text())
+        self._config.set("global_hotkey", hotkey)
         self._config.set("theme", self._theme_combo.currentData())
         cb = {
             "size": self._child_size_slider.value(),

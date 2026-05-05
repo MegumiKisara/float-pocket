@@ -54,7 +54,7 @@ if __name__ == "__main__":
     app_launch_module = AppLaunchModule()
     hotkey_mgr = HotkeyManager()
     app.installNativeEventFilter(hotkey_mgr)
-    hotkey_mgr.register(config_module.get("global_hotkey", "ctrl+alt+s"))
+    hotkey_mgr.register(config_module.get("global_hotkey", ""))
 
     float_ball = FloatBallModule(config_module, ocr_module, plan_module, app_launch_module, hotkey_mgr)
     hotkey_mgr.triggered.connect(float_ball.toggle_visibility)
