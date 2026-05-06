@@ -16,12 +16,6 @@ Windows 轻量化悬浮效率工具。个人自用小项目。
 
 首次使用需要在「设置」中配置千问 API Key（OCR/翻译功能需要）。
 
-## 构建
-
-```bash
-pip install -r requirements.txt
-pyinstaller --onefile --noconsole main.py
-```
 
 ## 说明
 
