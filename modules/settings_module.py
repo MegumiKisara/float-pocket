@@ -845,14 +845,16 @@ class SettingsDialog(QDialog):
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as k:
                 if enabled:
                     exe = sys.executable
-                    # Prefer pythonw.exe to avoid console window on startup
-                    if exe.endswith("python.exe"):
-                        pyw = exe[:-4] + "w.exe"
-                        if os.path.exists(pyw):
-                            exe = pyw
-                    script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
-                    winreg.SetValueEx(k, "FloatPocket", 0, winreg.REG_SZ,
-                                      f'"{exe}" "{script}"')
+                    if getattr(sys, 'frozen', False):
+                        cmd = f'"{exe}"'
+                    else:
+                        if exe.endswith("python.exe"):
+                            pyw = exe[:-4] + "w.exe"
+                            if os.path.exists(pyw):
+                                exe = pyw
+                        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
+                        cmd = f'"{exe}" "{script}"'
+                    winreg.SetValueEx(k, "FloatPocket", 0, winreg.REG_SZ, cmd)
                 else:
                     try:
                         winreg.DeleteValue(k, "FloatPocket")
