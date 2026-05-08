@@ -1,6 +1,9 @@
 import ctypes
+import time
 
 from PySide6.QtCore import QObject, QTimer, Signal
+
+from modules.logger_module import log
 
 VK_CONTROL = 0x11
 VK_MENU = 0x12  # Alt
@@ -41,6 +44,7 @@ class HotkeyManager(QObject):
         self._mod_vks = set()
         self._was_down = False
         self._hotkey_str = ""
+        self._last_trigger_at = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll)
         self._timer.setInterval(150)
@@ -105,12 +109,24 @@ class HotkeyManager(QObject):
         user32 = ctypes.windll.user32
         for mod_vk in self._mod_vks:
             if not (user32.GetAsyncKeyState(mod_vk) & 0x8000):
+                if self._was_down:
+                    log(f"hotkey _was_down reset: mod {mod_vk:#x} up")
                 self._was_down = False
                 return
         if not (user32.GetAsyncKeyState(self._vk) & 0x8000):
+            if self._was_down:
+                log(f"hotkey _was_down reset: vk {self._vk:#x} up")
             self._was_down = False
             return
 
         if not self._was_down:
             self._was_down = True
-            self.triggered.emit()
+            now = time.monotonic()
+            if now - self._last_trigger_at >= 0.3:
+                log(f"hotkey EMIT (cooldown ok, delta={now - self._last_trigger_at:.3f}s)")
+                self._last_trigger_at = now
+                self.triggered.emit()
+            else:
+                log(f"hotkey block by cooldown ({now - self._last_trigger_at:.3f}s)")
+        else:
+            log("hotkey _was_down already True, skip")

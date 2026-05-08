@@ -1,65 +1,19 @@
-# CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+1. 该项目用uv管理包
+2. 重新打包后，不要修改上一次该应用的设置信息
+3. 每次修改后都要重启应用
+4. 不要自己提交git，听我指令
 
-## 1. Think Before Coding
+5. QAction/QMenu 等 Qt 对象必须设置 parent 或由 Python 变量持有，防止被 GC 回收导致无声失效
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+6. 开发运行: uv run python main.py
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+7. 打包: uv run pyinstaller FloatPocket.spec
 
-## 2. Simplicity First
+8. DATA_DIR = <exe所在目录>/data/ (打包后) 或 项目根目录/data/ (开发时)
+   config.json 存储所有用户配置，修改配置逻辑时确保不覆盖已有设置
 
-**Minimum code that solves the problem. Nothing speculative.**
+9. 修改 hotkey 相关代码时，需同步更新 hotkey_module.py 和 tray_module 中配置界面的快捷键列表
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+10. 应用通过 QLockFile(data/instance.lock) 实现单实例，调试时如果报"已在运行中"，删除该文件即可

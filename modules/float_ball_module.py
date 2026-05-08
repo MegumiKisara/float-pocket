@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QWidget
 import time
 
 from modules.settings_module import SettingsDialog
+from modules.logger_module import log
 
 _EXPANDED_SIZE = 150
 
@@ -291,10 +292,13 @@ class FloatBallModule(QWidget):
 
     def _expand_balls(self):
         self._orig_pos = self.pos()
-        self._orig_size = QSize(self.width(), self.height())
+        fb = self._config.get("float_ball", {})
+        base_size = fb.get("size", 60)
+        self._orig_size = QSize(base_size, base_size)
         self._show_balls = True
         self._docked = False
         self._hover_timer.stop()
+        log(f"_expand_balls orig_pos=({self._orig_pos.x()},{self._orig_pos.y()}) orig_size=({base_size},{base_size})")
 
         # Determine expansion direction based on which screen half the ball is on
         screen = self.screen() or QApplication.primaryScreen()
@@ -311,14 +315,15 @@ class FloatBallModule(QWidget):
         new_y = self._orig_pos.y() - self._big_ball_rect.y()
         self.setFixedSize(_EXPANDED_SIZE, _EXPANDED_SIZE)
         self.move(new_x, new_y)
-        self._update_mask()  # /* 磨砂背景修复 */
+        self._update_mask()
         self.update()
 
     def _collapse_balls(self):
+        log(f"_collapse_balls → size=({self._orig_size.width()},{self._orig_size.height()}) pos=({self._orig_pos.x()},{self._orig_pos.y()})")
         self._show_balls = False
         self.setFixedSize(self._orig_size)
         self.move(self._orig_pos)
-        self._update_mask()  # /* 磨砂背景修复 */
+        self._update_mask()
         self.update()
 
     def _dock_after_collapse(self):
@@ -407,10 +412,15 @@ class FloatBallModule(QWidget):
         if self._hotkey_mgr:
             self._hotkey_mgr.register(self._config.get("global_hotkey", ""))
 
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        log("hideEvent")
+
     def showEvent(self, event):
         super().showEvent(event)
         self._update_mask()  # /* 磨砂背景修复 */
         self._apply_settings()
+        log("showEvent")
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
@@ -465,6 +475,7 @@ class FloatBallModule(QWidget):
         return super().eventFilter(obj, event)
 
     def toggle_visibility(self, expand=False):
+        log(f"toggle_visibility expand={expand} isVisible={self.isVisible()} _show_balls={self._show_balls} size=({self.width()},{self.height()})")
         if self.isVisible():
             self.hide()
         else:
@@ -479,6 +490,7 @@ class FloatBallModule(QWidget):
         geo = screen.availableGeometry()
         x = geo.x() + geo.width() - self.width() - 10
         y = geo.y() + (geo.height() - self.height()) // 2
+        log(f"_ensure_position width={self.width()} height={self.height()} → ({x},{y})")
         self.move(int(x), int(y))
         # Initialize dock positions so _dock_after_collapse() doesn't animate to (0,0)
         strip = 6
