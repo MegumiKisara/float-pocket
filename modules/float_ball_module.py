@@ -92,24 +92,28 @@ class FloatBallModule(QWidget):
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
         if not self._show_balls:
-            self._draw_ball(painter, 0, 0, w, h, None, icons.get("main", ""))
+            self._draw_ball(painter, 0, 0, w, h, None, icons.get("main", ""),
+                            QColor(fb.get("color", "#6CB4EE")))
         else:
             self._draw_ball(painter, self._big_ball_rect.x(), self._big_ball_rect.y(),
                             self._big_ball_rect.width(), self._big_ball_rect.height(),
-                            None, icons.get("main", ""))
+                            None, icons.get("main", ""),
+                            QColor(fb.get("color", "#6CB4EE")))
 
             cb = fb.get("child_ball", {})
             child_size = cb.get("size", 36)
             child_opacity = cb.get("opacity", 0.85)
             child_radius = min(cb.get("corner_radius", 18), child_size // 2)
+            child_colors = fb.get("child_colors", ["#6CB4EE"] * 4)
 
             for i, (_, char, rect) in enumerate(self._ball_items):
                 svg = icons.get(f"child_{i}", "")
+                c = QColor(child_colors[i]) if i < len(child_colors) else QColor("#6CB4EE")
                 self._draw_ball(painter, rect.x(), rect.y(),
                                 child_size, child_size,
-                                (char, child_opacity, child_radius), svg)
+                                (char, child_opacity, child_radius), svg, c)
 
-    def _draw_ball(self, painter, x, y, w, h, overlay=None, svg_data=""):
+    def _draw_ball(self, painter, x, y, w, h, overlay=None, svg_data="", color=None):
         fb = self._config.get("float_ball", {})
         opacity = fb.get("opacity", 0.8)
         r = min(fb.get("corner_radius", 8), w // 2)
@@ -138,8 +142,9 @@ class FloatBallModule(QWidget):
         painter.setClipPath(clip)
         painter.setOpacity(opacity)
         gradient = QLinearGradient(x, y, x, y + h)
-        gradient.setColorAt(0, QColor("#6CB4EE"))
-        gradient.setColorAt(1, QColor("#3A7BD5"))
+        base = color if color else QColor("#6CB4EE")
+        gradient.setColorAt(0, base)
+        gradient.setColorAt(1, base.darker(130))
         painter.fillRect(QRect(x, y, w, h), QBrush(gradient))
 
         # 3. Highlight

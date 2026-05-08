@@ -1,6 +1,8 @@
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -59,6 +61,73 @@ class _HotkeyEdit(QLineEdit):
         self.setText("+".join(keys))
 
 
+class _ColorButton(QPushButton):
+    colorChanged = Signal(str)
+
+    def __init__(self, color="#6CB4EE", parent=None):
+        super().__init__(parent)
+        self._color = color
+        self.setFixedSize(48, 28)
+        self.setObjectName("_ColorButton")
+        self._update_style()
+        self.clicked.connect(self._pick)
+
+    def _pick(self):
+        dlg = QColorDialog(QColor(self._color), self.window())
+        dlg.setWindowTitle("选择颜色")
+        dlg.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog)
+        self._translate_dlg(dlg)
+        dlg.currentColorChanged.connect(self._on_preview)
+        if dlg.exec():
+            self._color = dlg.currentColor().name()
+            self._update_style()
+            self.colorChanged.emit(self._color)
+        else:
+            self._update_style()
+
+    @staticmethod
+    def _translate_dlg(dlg):
+        for btn in dlg.findChildren(QPushButton):
+            t = btn.text().replace("&", "")
+            if t == "Pick Screen Color":
+                btn.setText("吸管")
+            elif t == "Add to Custom Colors":
+                btn.setText("添加到常用色")
+        for lbl in dlg.findChildren(QLabel):
+            t = lbl.text().replace("&", "")
+            if t == "Basic colors":
+                lbl.setText("基础颜色")
+            elif t == "Hue:":
+                lbl.setText("色相")
+            elif t == "Sat:":
+                lbl.setText("饱和度")
+            elif t == "Val:":
+                lbl.setText("明度")
+            elif t == "Red:":
+                lbl.setText("R:")
+            elif t == "Green:":
+                lbl.setText("G:")
+            elif t == "Blue:":
+                lbl.setText("B:")
+
+    def _on_preview(self, color):
+        self._color = color.name()
+        self._update_style()
+        self.colorChanged.emit(self._color)
+
+    def _update_style(self):
+        self.setStyleSheet(
+            f"#_ColorButton {{ background-color: {self._color}; border: 1px solid #C9CDD4; border-radius: 6px; }}"
+        )
+
+    def current_color(self):
+        return self._color
+
+    def set_color(self, color):
+        self._color = color
+        self._update_style()
+
+
 class SettingsDialog(QDialog):
     settings_changed = Signal()
 
@@ -108,15 +177,17 @@ class SettingsDialog(QDialog):
         fl2.addRow("唤起悬浮球", self._hotkey_edit)
         gl.addWidget(group2)
 
-        # --- 主题 ---
-        group4 = QGroupBox("主题")
-        fl4 = QFormLayout(group4)
-        self._theme_combo = QComboBox()
-        self._theme_combo.addItem("浅色", "light")
-        self._theme_combo.addItem("深色", "dark")
-        self._theme_combo.currentIndexChanged.connect(self._apply_preview)
-        fl4.addRow("主题切换", self._theme_combo)
-        gl.addWidget(group4)
+        # --- 颜色设置 ---
+        color_group = QGroupBox("颜色设置")
+        color_layout = QFormLayout(color_group)
+        self._color_btns = {}
+        color_balls = [("主球", "main"), ("OCR / 翻译", 0), ("计划表", 1), ("快捷应用", 2), ("设置", 3)]
+        for label, key in color_balls:
+            btn = _ColorButton()
+            btn.colorChanged.connect(self._apply_preview)
+            self._color_btns[key] = btn
+            color_layout.addRow(label, btn)
+        gl.addWidget(color_group)
 
         gl.addStretch()
         general_scroll.setWidget(general)
@@ -555,10 +626,11 @@ class SettingsDialog(QDialog):
 
         self._hotkey_edit.setText(self._config.get("global_hotkey", "ctrl+alt+s"))
 
-        self._theme_combo.blockSignals(True)
-        themes = {"light": 0, "dark": 1}
-        self._theme_combo.setCurrentIndex(themes.get(self._config.get("theme", "light"), 0))
-        self._theme_combo.blockSignals(False)
+        fb = self._config.get("float_ball", {})
+        self._color_btns["main"].set_color(fb.get("color", "#6CB4EE"))
+        child_colors = fb.get("child_colors", ["#6CB4EE"] * 4)
+        for i in range(4):
+            self._color_btns[i].set_color(child_colors[i] if i < len(child_colors) else "#6CB4EE")
 
         self._api_key_edit.setText(env_get_api_key())
         self._refresh_app_tab()
@@ -614,7 +686,6 @@ class SettingsDialog(QDialog):
             self._icon_preview.clear()
 
     def _apply_preview(self):
-        self._config.set_preview("theme", self._theme_combo.currentData())
         cb = {
                 "size": self._child_size_slider.value(),
                 "opacity": self._child_opacity_slider.value() / 100.0,
@@ -626,6 +697,8 @@ class SettingsDialog(QDialog):
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
+            "color": self._color_btns["main"].current_color(),
+            "child_colors": [self._color_btns[i].current_color() for i in range(4)],
             "child_ball": cb,
             "ball_positions": [
                 {"dx": s[0].value(), "dy": s[1].value()}
@@ -647,7 +720,6 @@ class SettingsDialog(QDialog):
             return
         self._config.set("auto_start", self._auto_start_cb.isChecked())
         self._config.set("global_hotkey", hotkey)
-        self._config.set("theme", self._theme_combo.currentData())
         cb = {
             "size": self._child_size_slider.value(),
             "opacity": self._child_opacity_slider.value() / 100.0,
@@ -659,6 +731,8 @@ class SettingsDialog(QDialog):
             "opacity": self._opacity_slider.value() / 100.0,
             "corner_radius": self._radius_slider.value(),
             "edge_adsorption": self._edge_cb.isChecked(),
+            "color": self._color_btns["main"].current_color(),
+            "child_colors": [self._color_btns[i].current_color() for i in range(4)],
             "child_ball": cb,
             "ball_positions": [
                 {"dx": s[0].value(), "dy": s[1].value()}
