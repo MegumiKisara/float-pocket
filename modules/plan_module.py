@@ -1,10 +1,8 @@
 from PySide6.QtCore import Qt, QEvent
+from PySide6.QtWidgets import QSizePolicy
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -35,36 +33,53 @@ class _TaskItem(QWidget):
         self._checkbox.stateChanged.connect(self._toggle_completed)
         layout.addWidget(self._checkbox)
 
-        self._title_display = QLabel(self._task["title"])
-        self._title_display.setWordWrap(True)
+        self._title_display = QTextEdit()
+        self._title_display.setFrameStyle(QTextEdit.NoFrame)
+        self._title_display.setReadOnly(True)
+        self._title_display.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._title_display.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._title_display.document().setDocumentMargin(0)
+        self._title_display.setFixedHeight(36)
+        self._title_display.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._title_display.setPlainText(self._task["title"])
+        self._title_display.setStyleSheet("""
+            QTextEdit { border: none; background: transparent; padding: 0px; margin: 0px; }
+        """)
+        self._title_display.textChanged.connect(self._adjust_display_height)
         self._update_display_style()
         layout.addWidget(self._title_display, 1)
 
+        self._edit_input = QTextEdit()
+        self._edit_input.setPlainText(self._task["title"])
+        self._edit_input.setVisible(False)
+        self._edit_input.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._edit_input.setFixedHeight(36)
+        self._edit_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._edit_input.textChanged.connect(self._adjust_edit_input_height)
+        self._edit_input.installEventFilter(self)
+        layout.addWidget(self._edit_input, 1)
+
         self._edit_btn = QPushButton("编辑")
-        self._edit_btn.setFixedWidth(60)  # 加宽以完整显示"编辑"/"保存"文字
-        self._edit_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")  # 新增样式
+        self._edit_btn.setFixedWidth(60)
+        self._edit_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px;")
         self._edit_btn.clicked.connect(self._toggle_edit)
         layout.addWidget(self._edit_btn)
 
         self._delete_btn = QPushButton("×")
         self._delete_btn.setFixedWidth(28)
-        self._delete_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px;")  # 新增样式
+        self._delete_btn.setStyleSheet("background: #F0F2F5; color: #1D2129; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px;")
         self._delete_btn.clicked.connect(self._delete_task)
         layout.addWidget(self._delete_btn)
 
     def _update_display_style(self):
         if self._task["completed"]:
             self._title_display.setStyleSheet(
-                "border: none; background: transparent; color: #86909C; font-size: 14px;"  # 新增样式
+                "QTextEdit { border: none; background: transparent; padding: 0px; margin: 0px; color: #86909C; font-size: 14px; }"
             )
-            font = self._title_display.font()
-            font.setStrikeOut(True)
-            self._title_display.setFont(font)
         else:
-            self._title_display.setStyleSheet("border: none; background: transparent; color: #1D2129; font-size: 14px;")
-            font = self._title_display.font()
-            font.setStrikeOut(False)
-            self._title_display.setFont(font)
+            self._title_display.setStyleSheet(
+                "QTextEdit { border: none; background: transparent; padding: 0px; margin: 0px; color: #1D2129; font-size: 14px; }"
+            )
 
     def _toggle_completed(self, state):
         completed = state == Qt.CheckState.Checked.value
@@ -72,13 +87,52 @@ class _TaskItem(QWidget):
         self._task["completed"] = completed
         self._update_display_style()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._adjust_display_height()
+
     def _toggle_edit(self):
-        from PySide6.QtWidgets import QInputDialog
-        text, ok = QInputDialog.getText(self, "编辑待办", "内容：", text=self._task["title"])
-        if ok and text.strip():
-            self._storage.update(self._task["id"], title=text.strip())
-            self._task["title"] = text.strip()
-            self._title_display.setText(text.strip())
+        if self._editing:
+            self._save_edit()
+            return
+        self._editing = True
+        self._title_display.setVisible(False)
+        self._edit_input.setVisible(True)
+        self._edit_input.setPlainText(self._task["title"])
+        self._edit_input.setFocus()
+        self._edit_input.selectAll()
+        self._edit_btn.setText("保存")
+
+    def _save_edit(self):
+        if not self._editing:
+            return
+        text = self._edit_input.toPlainText().strip()
+        if text and text != self._task["title"]:
+            self._storage.update(self._task["id"], title=text)
+            self._task["title"] = text
+        self._editing = False
+        self._edit_input.setVisible(False)
+        self._edit_input.setFixedHeight(36)
+        self._title_display.setVisible(True)
+        self._title_display.setPlainText(self._task["title"])
+        self._edit_btn.setText("编辑")
+
+    def _adjust_display_height(self):
+        doc_height = self._title_display.document().size().height()
+        h = int(doc_height) + 2
+        self._title_display.setFixedHeight(max(36, min(h, 300)))
+
+    def _adjust_edit_input_height(self):
+        doc_height = self._edit_input.document().size().height()
+        h = int(doc_height) + self._edit_input.frameWidth() * 2 + 8
+        self._edit_input.setFixedHeight(max(36, min(h, 150)))
+
+    def eventFilter(self, obj, event):
+        if obj == self._edit_input and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Return and not (event.modifiers() & Qt.ShiftModifier):
+                self._save_edit()
+                return True
+        return super().eventFilter(obj, event)
 
     def _delete_task(self):
         reply = QMessageBox.question(
@@ -125,9 +179,12 @@ class PlanModule(QWidget):
 
         # ── Add task area ────────────────────────────────────
         add_row = QHBoxLayout()
-        self._add_input = QLineEdit()
+        self._add_input = QTextEdit()
         self._add_input.setPlaceholderText("输入新待办事项...")
-        self._add_input.returnPressed.connect(self._add_task)
+        self._add_input.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._add_input.setFixedHeight(36)
+        self._add_input.textChanged.connect(self._adjust_add_input_height)
+        self._add_input.installEventFilter(self)
         add_row.addWidget(self._add_input, 1)
 
         self._add_btn = QPushButton("+ 新增")
@@ -138,13 +195,13 @@ class PlanModule(QWidget):
         # ── Task list (scrollable) ───────────────────────────
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll.setStyleSheet("border: none;")
 
         self._list_widget = QWidget()
         self._list_layout = QVBoxLayout(self._list_widget)
         self._list_layout.setSpacing(2)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_widget)
         layout.addWidget(self._scroll, 1)
@@ -187,6 +244,17 @@ class PlanModule(QWidget):
             QLineEdit:focus {
                 border: 1px solid #165DFF;
             }
+            QTextEdit {
+                background-color: #FFFFFF;
+                border: 1px solid #E5E6EB;
+                border-radius: 8px;
+                padding: 4px 8px;
+                font-size: 14px;
+                color: #1D2129;
+            }
+            QTextEdit:focus {
+                border: 1px solid #165DFF;
+            }
             QPushButton {
                 background-color: #E8F0FE;
                 color: #165DFF;
@@ -219,6 +287,20 @@ class PlanModule(QWidget):
         self.activateWindow()
         self._refresh_list()
 
+    # ── dynamic input height ───────────────────────────────────
+
+    def _adjust_add_input_height(self):
+        doc_height = self._add_input.document().size().height()
+        h = int(doc_height) + self._add_input.frameWidth() * 2 + 8
+        self._add_input.setFixedHeight(max(36, min(h, 150)))
+
+    def eventFilter(self, obj, event):
+        if obj == self._add_input and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Return and not (event.modifiers() & Qt.ShiftModifier):
+                self._add_task()
+                return True
+        return super().eventFilter(obj, event)
+
     # ── pin toggle ────────────────────────────────────────────
 
     _BASE_FLAGS = (
@@ -243,11 +325,12 @@ class PlanModule(QWidget):
     # ── task operations ───────────────────────────────────────
 
     def _add_task(self):
-        title = self._add_input.text().strip()
+        title = self._add_input.toPlainText().strip()
         if not title:
             return
         self._storage.add(title)
         self._add_input.clear()
+        self._add_input.setFixedHeight(36)
         self._refresh_list()
 
     def _clear_all(self):
@@ -269,8 +352,7 @@ class PlanModule(QWidget):
             self._refresh_list()
 
     def _refresh_list(self):
-        # Remove all widgets except the trailing stretch
-        while self._list_layout.count() > 1:
+        while self._list_layout.count():
             item = self._list_layout.takeAt(0)
             widget = item.widget()
             if widget:
@@ -279,4 +361,5 @@ class PlanModule(QWidget):
         tasks = self._storage.get_all()
         for task in tasks:
             item = _TaskItem(task, self._storage, self._refresh_list)
-            self._list_layout.insertWidget(self._list_layout.count() - 1, item)
+            self._list_layout.addWidget(item)
+        self._list_layout.addStretch()
